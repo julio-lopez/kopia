@@ -76,6 +76,7 @@ func RepairAndDiscard(ctx context.Context, rep *repo.Repository, minGCMarkAge ti
 func repairSnapshots(ctx context.Context, rep *repo.Repository, snaps manifestIDSet) error {
 	return walkSnapshots(ctx, rep, snaps.slice(), func(entry fs.Entry) error {
 		oid := oidOf(entry)
+		// TODO: Check oid itself as well
 		contentIDs, err := rep.Objects.VerifyObject(ctx, oid)
 
 		if err != nil {
