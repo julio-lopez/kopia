@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/repo/content"
@@ -88,5 +89,30 @@ func TestSortContentIDs(t *testing.T) {
 	for i, id := range cids[1:] {
 		prev, current := string(cids[i]), string(id)
 		require.LessOrEqual(t, prev, current, "content IDs not sorted")
+	}
+}
+
+func Test_listMarkManifestsOlderThan(t *testing.T) {
+	// - create n gc manifests (no id) with mod time x (- 5 hours)
+	// - create m gc manifests (no id) with mod time y (- 2 hour)
+	// - read the manifests
+	//
+	// cases
+	// - filter as is should get empty because metadata mod time is very recent
+	// - modify entry meta for a few of them to be e.g., -1 h, filtering
+	//   should return the ones that have the modified time when age < -1h
+	//   should not return anything if age is > -1h
+	tests := []struct {
+		name    string
+		wantErr bool
+		age     time.Duration
+	}{}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		_, err := listMarkManifestsOlderThan(ctx, nil, tt.age)
+		assert.NoError(t, err)
+		t.Fatal("TODO", tt)
 	}
 }
