@@ -109,12 +109,14 @@ func listMarkManifestsOlderThan(ctx context.Context, mgr *manifest.Manager, minA
 		return nil, err
 	}
 
-	ageDate := time.Now().Add(-minAge)
+	return filterManifestsOlderThan(ctx, mgr, meta, time.Now().Add(-minAge))
+}
 
+func filterManifestsOlderThan(ctx context.Context, mgr *manifest.Manager, meta []*manifest.EntryMetadata, ageTime time.Time) ([]MarkManifest, error) {
 	var mms []MarkManifest
 
 	for _, m := range meta {
-		if m.ModTime.After(ageDate) {
+		if m.ModTime.After(ageTime) {
 			continue // ignore recent entries
 		}
 
@@ -127,7 +129,7 @@ func listMarkManifestsOlderThan(ctx context.Context, mgr *manifest.Manager, minA
 			return nil, err
 		}
 
-		if man.EndTime.After(ageDate) {
+		if man.EndTime.After(ageTime) {
 			continue
 		}
 
