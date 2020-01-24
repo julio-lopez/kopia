@@ -145,6 +145,22 @@ func Test_deleteUnused(t *testing.T) {
 	}
 }
 
+func TestGCSimple(t *testing.T) {
+	// create FS with 3 files
+	// create snapshot
+	// remove file
+	// create snapshot
+	//
+	// run gc, no content should be deleted
+	// iterate through content, there should be no deleted content
+	// delete first snapshot,
+	// run gc with long minimum age, nothing should be deleted
+	// run gc with 0 minimum age, 2 contents should be deleted (file and dir)
+	// re-create deleted file and snapshot
+	// run gc with 0 minimum age, nothing new should be deleted
+	// after each GC, running snapshot verify should succeed
+}
+
 type testRepo struct {
 	stateDir string
 	repo     *repo.Repository
