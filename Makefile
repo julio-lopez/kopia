@@ -76,7 +76,7 @@ travis-release: install kopia-ui
 endif
 
 ifeq ($(TRAVIS_OS_NAME),linux)
-travis-release: goreleaser kopia-ui website
+travis-release: install-noui
 	$(MAKE) test-all
 	$(MAKE) integration-tests
 	$(MAKE) stress-test
@@ -85,7 +85,7 @@ ifneq ($(TRAVIS_TAG),)
 endif
 endif
 
-test-all: lint vet test-with-coverage html-ui-tests html-ui-tests
+test-all: lint vet test-with-coverage
 
 # goreleaser - builds binaries for all platforms
 GORELEASER_OPTIONS=--rm-dist --skip-publish --parallelism=6
