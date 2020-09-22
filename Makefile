@@ -313,6 +313,15 @@ build-integration-test-binary:
 $(TESTING_ACTION_EXE): tests/testingaction/main.go
 	go build -o $(TESTING_ACTION_EXE) -tags testing github.com/kopia/kopia/tests/testingaction
 
+integration-tests: export KOPIA_EXE ?= $(KOPIA_INTEGRATION_EXE)
+integration-tests: export KOPIA_08_EXE=$(kopia08)
+integration-tests: export KOPIA_TRACK_CHUNK_ALLOC=1
+integration-tests: export TESTING_ACTION_EXE ?= $(TESTING_ACTION_EXE)
+integration-tests: GOTESTSUM_FLAGS=--format=testname --no-summary=skipped --jsonfile=.tmp.integration-tests.json
+integration-tests: build-integration-test-binary $(gotestsum) $(TESTING_ACTION_EXE) $(kopia08)
+	$(GO_TEST) $(TEST_FLAGS) -count=$(REPEAT_TEST) -parallel $(PARALLEL) -timeout 300s github.com/kopia/kopia/tests/end_to_end_test
+	-$(gotestsum) tool slowest --jsonfile .tmp.integration-tests.json  --threshold 1000ms
+
 compat-tests: export KOPIA_CURRENT_EXE=$(CURDIR)/$(kopia_ui_embedded_exe)
 compat-tests: export KOPIA_08_EXE=$(kopia08)
 compat-tests: export KOPIA_017_EXE=$(kopia017)
