@@ -309,3 +309,4 @@ regenerate-checksums:
 
 all-tools: $(gotestsum) $(npm) $(linter) $(maybehugo)
 
+gotestsum: $(gotestsum)
