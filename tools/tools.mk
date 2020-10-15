@@ -193,6 +193,8 @@ gotestsum=$(gotestsum_dir)$(slash)gotestsum$(exe_suffix)
 $(gotestsum):
 	go run github.com/kopia/kopia/tools/gettool --tool gotestsum:$(GOTESTSUM_VERSION) --output-dir $(gotestsum_dir)
 
+install-gotestsum: $(gotestsum)
+
 # kopia 0.8 for backwards compat testing
 kopia08_version=0.8.4
 kopia08_dir=$(TOOLS_DIR)$(slash)kopia-$(kopia08_version)
