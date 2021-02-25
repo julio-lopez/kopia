@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,29 +19,11 @@ const (
 	logsDirPermissions  = 0o750
 )
 
-//nolint:gochecknoglobals
-var interestingLengths = []int{10, 50, 100, 240, 250, 260, 270}
-
 // GetInterestingTempDirectoryName returns interesting directory name used for testing.
 func GetInterestingTempDirectoryName() (string, error) {
 	td, err := os.MkdirTemp("", "kopia-test-"+time.Now().UTC().Format("20060102-150405")) //nolint:forbidigo
 	if err != nil {
 		return "", errors.Wrap(err, "unable to create temp directory")
-	}
-
-	//nolint:gosec
-	targetLen := interestingLengths[rand.Intn(len(interestingLengths))]
-
-	// make sure the base directory is quite long to trigger very long filenames on Windows.
-	if n := len(td); n < targetLen {
-		if !ShouldSkipLongFilenames() {
-			td = filepath.Join(td, strings.Repeat("f", targetLen-n))
-		}
-
-		//nolint:mnd
-		if err := os.MkdirAll(td, 0o700); err != nil {
-			return "", errors.Wrap(err, "unable to create temp directory")
-		}
 	}
 
 	return td, nil
