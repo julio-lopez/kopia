@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	cloud.google.com/go/storage v1.16.0
-	contrib.go.opencensus.io/exporter/prometheus v0.3.0
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-storage-blob-go v0.14.0
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
@@ -43,7 +43,6 @@ require (
 	github.com/pquerna/ffjson v0.0.0-20190930134022-aa0246cd15f7 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sanity-io/litter v1.5.1
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/smartystreets/assertions v1.1.1 // indirect
 	github.com/stretchr/testify v1.7.0
@@ -66,6 +65,5 @@ require (
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/kothar/go-backblaze.v0 v0.0.0-20210124194846-35409b867216
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
