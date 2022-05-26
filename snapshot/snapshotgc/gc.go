@@ -98,6 +98,8 @@ func runInternal(ctx context.Context, rep repo.DirectRepositoryWriter, gcDelete 
 		unused, inUse, system, tooRecent, undeleted stats.CountSum
 	)
 
+	startTime := rep.Time()
+
 	if err := findInUseContentIDs(ctx, rep, &used); err != nil {
 		return errors.Wrap(err, "unable to find in-use content ID")
 	}
@@ -125,7 +127,7 @@ func runInternal(ctx context.Context, rep repo.DirectRepositoryWriter, gcDelete 
 			return nil
 		}
 
-		if rep.Time().Sub(ci.Timestamp()) < safety.MinContentAgeSubjectToGC {
+		if startTime.Sub(ci.Timestamp()) < safety.MinContentAgeSubjectToGC {
 			log(ctx).Debugf("recent unreferenced content %v (%v bytes, modified %v)", ci.GetContentID(), ci.GetPackedLength(), ci.Timestamp())
 			tooRecent.Add(int64(ci.GetPackedLength()))
 
