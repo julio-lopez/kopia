@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kopia/kopia/fs"
+	"github.com/kopia/kopia/internal/clock"
 )
 
 const (
@@ -73,7 +74,7 @@ type staticDirectory struct {
 
 // Child gets the named child of a directory.
 func (sd *staticDirectory) Child(ctx context.Context, name string) (fs.Entry, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return fs.IterateEntriesAndFindChild(ctx, sd, name)
 }
 
@@ -188,10 +189,16 @@ func (vf *virtualFile) GetReader(ctx context.Context) (io.Reader, error) {
 
 // StreamingFileFromReader returns a streaming file with given name and reader.
 func StreamingFileFromReader(name string, reader io.Reader) fs.StreamingFile {
+	return StreamingFileWithModTimeFromReader(name, clock.Now(), reader)
+}
+
+// StreamingFileWithModTimeFromReader returns a streaming file with given name, modified time, and reader.
+func StreamingFileWithModTimeFromReader(name string, t time.Time, reader io.Reader) fs.StreamingFile {
 	return &virtualFile{
 		virtualEntry: virtualEntry{
-			name: name,
-			mode: defaultPermissions,
+			name:    name,
+			mode:    defaultPermissions,
+			modTime: t,
 		},
 		reader: reader,
 	}

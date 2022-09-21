@@ -16,7 +16,9 @@ import (
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/throttling"
 	"github.com/kopia/kopia/repo/compression"
+	"github.com/kopia/kopia/repo/ecc"
 	"github.com/kopia/kopia/repo/encryption"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/hashing"
 	"github.com/kopia/kopia/repo/maintenance"
 	"github.com/kopia/kopia/repo/splitter"
@@ -33,11 +35,16 @@ func handleRepoParameters(ctx context.Context, rc requestContext) (interface{}, 
 		}, nil
 	}
 
+	scc, err := dr.ContentReader().SupportsContentCompression()
+	if err != nil {
+		return nil, internalServerError(err)
+	}
+
 	rp := &remoterepoapi.Parameters{
-		HashFunction:               dr.ContentReader().ContentFormat().Hash,
-		HMACSecret:                 dr.ContentReader().ContentFormat().HMACSecret,
-		Format:                     dr.ObjectFormat(),
-		SupportsContentCompression: dr.ContentReader().SupportsContentCompression(),
+		HashFunction:               dr.ContentReader().ContentFormat().GetHashFunction(),
+		HMACSecret:                 dr.ContentReader().ContentFormat().GetHmacSecret(),
+		ObjectFormat:               dr.ObjectFormat(),
+		SupportsContentCompression: scc,
 	}
 
 	return rp, nil
@@ -53,16 +60,29 @@ func handleRepoStatus(ctx context.Context, rc requestContext) (interface{}, *api
 
 	dr, ok := rc.rep.(repo.DirectRepository)
 	if ok {
+		mp, mperr := dr.ContentReader().ContentFormat().GetMutableParameters()
+		if mperr != nil {
+			return nil, internalServerError(mperr)
+		}
+
+		scc, err := dr.ContentReader().SupportsContentCompression()
+		if err != nil {
+			return nil, internalServerError(err)
+		}
+
 		return &serverapi.StatusResponse{
 			Connected:                  true,
 			ConfigFile:                 dr.ConfigFilename(),
-			Hash:                       dr.ContentReader().ContentFormat().Hash,
-			Encryption:                 dr.ContentReader().ContentFormat().Encryption,
-			MaxPackSize:                dr.ContentReader().ContentFormat().MaxPackSize,
+			FormatVersion:              mp.Version,
+			Hash:                       dr.ContentReader().ContentFormat().GetHashFunction(),
+			Encryption:                 dr.ContentReader().ContentFormat().GetEncryptionAlgorithm(),
+			ECC:                        dr.ContentReader().ContentFormat().GetECCAlgorithm(),
+			ECCOverheadPercent:         dr.ContentReader().ContentFormat().GetECCOverheadPercent(),
+			MaxPackSize:                mp.MaxPackSize,
 			Splitter:                   dr.ObjectFormat().Splitter,
 			Storage:                    dr.BlobReader().ConnectionInfo().Type,
 			ClientOptions:              dr.ClientOptions(),
-			SupportsContentCompression: dr.ContentReader().SupportsContentCompression(),
+			SupportsContentCompression: scc,
 		}, nil
 	}
 
@@ -169,12 +189,12 @@ func handleRepoExists(ctx context.Context, rc requestContext) (interface{}, *api
 		return nil, internalServerError(err)
 	}
 
-	defer st.Close(ctx) // nolint:errcheck
+	defer st.Close(ctx) //nolint:errcheck
 
 	var tmp gather.WriteBuffer
 	defer tmp.Close()
 
-	if err := st.GetBlob(ctx, repo.FormatBlobID, 0, -1, &tmp); err != nil {
+	if err := st.GetBlob(ctx, format.KopiaRepositoryBlobID, 0, -1, &tmp); err != nil {
 		if errors.Is(err, blob.ErrBlobNotFound) {
 			return nil, requestError(serverapi.ErrorNotInitialized, "repository not initialized")
 		}
@@ -257,6 +277,9 @@ func handleRepoSupportedAlgorithms(ctx context.Context, rc requestContext) (inte
 		DefaultEncryptionAlgorithm:    encryption.DefaultAlgorithm,
 		SupportedEncryptionAlgorithms: toAlgorithmInfo(encryption.SupportedAlgorithms(false), neverDeprecated),
 
+		DefaultECCAlgorithm:    ecc.DefaultAlgorithm,
+		SupportedECCAlgorithms: toAlgorithmInfo(ecc.SupportedAlgorithms(), neverDeprecated),
+
 		DefaultSplitterAlgorithm:    splitter.DefaultAlgorithm,
 		SupportedSplitterAlgorithms: toAlgorithmInfo(splitter.SupportedAlgorithms(), neverDeprecated),
 	}
@@ -270,6 +293,7 @@ func handleRepoSupportedAlgorithms(ctx context.Context, rc requestContext) (inte
 
 	sortAlgorithms(res.SupportedHashAlgorithms)
 	sortAlgorithms(res.SupportedEncryptionAlgorithms)
+	sortAlgorithms(res.SupportedECCAlgorithms)
 	sortAlgorithms(res.SupportedCompressionAlgorithms)
 	sortAlgorithms(res.SupportedSplitterAlgorithms)
 
@@ -345,7 +369,7 @@ func connectAPIServerAndOpen(ctx context.Context, si *repo.APIServerInfo, passwo
 		return nil, errors.Wrap(err, "error connecting to API server")
 	}
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return repo.Open(ctx, opts.ConfigFile, password, nil)
 }
 
@@ -362,7 +386,7 @@ func connectAndOpen(ctx context.Context, conn blob.ConnectionInfo, password stri
 		return nil, errors.Wrap(err, "error connecting")
 	}
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return repo.Open(ctx, opts.ConfigFile, password, nil)
 }
 
@@ -381,12 +405,12 @@ func (s *Server) disconnect(ctx context.Context) error {
 	}
 
 	if err := repo.Disconnect(ctx, s.options.ConfigFile); err != nil {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return err
 	}
 
 	if err := s.options.PasswordPersist.DeletePassword(ctx, s.options.ConfigFile); err != nil {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return err
 	}
 

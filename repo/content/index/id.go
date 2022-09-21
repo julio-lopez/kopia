@@ -42,7 +42,7 @@ type ID struct {
 func (i ID) MarshalJSON() ([]byte, error) {
 	s := i.String()
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return json.Marshal(s)
 }
 
@@ -70,10 +70,11 @@ func (i ID) Hash() []byte {
 }
 
 // EmptyID represents empty content ID.
-var EmptyID = ID{} // nolint:gochecknoglobals
+var EmptyID = ID{} //nolint:gochecknoglobals
 
 // prefixStrings contains precomputed single-character strings for all valid prefixes 'g'..'z'
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var prefixStrings [256]IDPrefix
 
 func init() {
@@ -105,6 +106,19 @@ func (i ID) AppendToLogBuffer(sb *logging.Buffer) {
 
 	hex.Encode(buf[0:i.idLen*2], i.data[0:i.idLen])
 	sb.AppendBytes(buf[0 : i.idLen*2])
+}
+
+// Append appends content ID to the slice.
+func (i ID) Append(out []byte) []byte {
+	var buf [128]byte
+
+	if i.prefix != 0 {
+		out = append(out, i.prefix)
+	}
+
+	hex.Encode(buf[0:i.idLen*2], i.data[0:i.idLen])
+
+	return append(out, buf[0:i.idLen*2]...)
 }
 
 // String returns a string representation of ID.

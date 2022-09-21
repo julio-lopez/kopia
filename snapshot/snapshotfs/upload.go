@@ -22,7 +22,6 @@ import (
 
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/fs/ignorefs"
-	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/iocopy"
 	"github.com/kopia/kopia/internal/timetrack"
 	"github.com/kopia/kopia/internal/workshare"
@@ -124,7 +123,6 @@ func (u *Uploader) IsCanceled() bool {
 	return u.incompleteReason() != ""
 }
 
-//
 func (u *Uploader) incompleteReason() string {
 	if c := atomic.LoadInt32(&u.canceled) != 0; c {
 		return IncompleteReasonCanceled
@@ -138,8 +136,12 @@ func (u *Uploader) incompleteReason() string {
 	return ""
 }
 
-func (u *Uploader) uploadFileInternal(ctx context.Context, parentCheckpointRegistry *checkpointRegistry, relativePath string, f fs.File, pol *policy.Policy) (*snapshot.DirEntry, error) {
+func (u *Uploader) uploadFileInternal(ctx context.Context, parentCheckpointRegistry *checkpointRegistry, relativePath string, f fs.File, pol *policy.Policy) (dirEntry *snapshot.DirEntry, ret error) {
 	u.Progress.HashingFile(relativePath)
+
+	defer func() {
+		u.Progress.FinishedFile(relativePath, ret)
+	}()
 	defer u.Progress.FinishedHashingFile(relativePath, f.Size())
 
 	if pf, ok := f.(snapshot.HasDirEntryOrNil); ok {
@@ -247,7 +249,7 @@ func (u *Uploader) uploadFileData(ctx context.Context, parentCheckpointRegistry 
 	defer writer.Close() //nolint:errcheck
 
 	parentCheckpointRegistry.addCheckpointCallback(fname, func() (*snapshot.DirEntry, error) {
-		// nolint:govet
+		//nolint:govet
 		checkpointID, err := writer.Checkpoint()
 		if err != nil {
 			return nil, errors.Wrap(err, "checkpoint error")
@@ -296,8 +298,12 @@ func (u *Uploader) uploadFileData(ctx context.Context, parentCheckpointRegistry 
 	return de, nil
 }
 
-func (u *Uploader) uploadSymlinkInternal(ctx context.Context, relativePath string, f fs.Symlink) (*snapshot.DirEntry, error) {
+func (u *Uploader) uploadSymlinkInternal(ctx context.Context, relativePath string, f fs.Symlink) (dirEntry *snapshot.DirEntry, ret error) {
 	u.Progress.HashingFile(relativePath)
+
+	defer func() {
+		u.Progress.FinishedFile(relativePath, ret)
+	}()
 	defer u.Progress.FinishedHashingFile(relativePath, f.Size())
 
 	target, err := f.Readlink(ctx)
@@ -330,7 +336,7 @@ func (u *Uploader) uploadSymlinkInternal(ctx context.Context, relativePath strin
 	return de, nil
 }
 
-func (u *Uploader) uploadStreamingFileInternal(ctx context.Context, relativePath string, f fs.StreamingFile) (*snapshot.DirEntry, error) {
+func (u *Uploader) uploadStreamingFileInternal(ctx context.Context, relativePath string, f fs.StreamingFile) (dirEntry *snapshot.DirEntry, ret error) {
 	reader, err := f.GetReader(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get streaming file reader")
@@ -342,6 +348,7 @@ func (u *Uploader) uploadStreamingFileInternal(ctx context.Context, relativePath
 
 	defer func() {
 		u.Progress.FinishedHashingFile(relativePath, streamSize)
+		u.Progress.FinishedFile(relativePath, ret)
 	}()
 
 	writer := u.repo.NewObjectWriter(ctx, object.WriterOptions{
@@ -366,7 +373,6 @@ func (u *Uploader) uploadStreamingFileInternal(ctx context.Context, relativePath
 
 	de.FileSize = written
 	streamSize = written
-	de.ModTime = clock.Now()
 
 	atomic.AddInt32(&u.stats.TotalFileCount, 1)
 	atomic.AddInt64(&u.stats.TotalFileSize, de.FileSize)
@@ -396,7 +402,7 @@ func (u *Uploader) copyWithProgress(dst io.Writer, src io.Reader) (int64, error)
 			}
 
 			if writeErr != nil {
-				// nolint:wrapcheck
+				//nolint:wrapcheck
 				return written, writeErr
 			}
 
@@ -410,7 +416,7 @@ func (u *Uploader) copyWithProgress(dst io.Writer, src io.Reader) (int64, error)
 				break
 			}
 
-			// nolint:wrapcheck
+			//nolint:wrapcheck
 			return written, readErr
 		}
 	}
@@ -450,7 +456,7 @@ func newDirEntry(md fs.Entry, fname string, oid object.ID) (*snapshot.DirEntry, 
 		Type:        entryType,
 		Permissions: snapshot.Permissions(md.Mode() & os.ModePerm),
 		FileSize:    md.Size(),
-		ModTime:     md.ModTime(),
+		ModTime:     fs.UTCTimestampFromTime(md.ModTime()),
 		UserID:      md.Owner().UserID,
 		GroupID:     md.Owner().GroupID,
 		ObjectID:    oid,
@@ -484,7 +490,7 @@ func (u *Uploader) checkpointRoot(ctx context.Context, cp *checkpointRegistry, p
 		return errors.Wrap(err, "running checkpointers")
 	}
 
-	checkpointManifest := dmbCheckpoint.Build(u.repo.Time(), "dummy")
+	checkpointManifest := dmbCheckpoint.Build(fs.UTCTimestampFromTime(u.repo.Time()), "dummy")
 	if len(checkpointManifest.Entries) == 0 {
 		// did not produce a checkpoint, that's ok
 		return nil
@@ -500,7 +506,7 @@ func (u *Uploader) checkpointRoot(ctx context.Context, cp *checkpointRegistry, p
 
 	man := *prototypeManifest
 	man.RootEntry = rootEntry
-	man.EndTime = u.repo.Time()
+	man.EndTime = fs.UTCTimestampFromTime(u.repo.Time())
 	man.StartTime = man.EndTime
 	man.IncompleteReason = IncompleteReasonCheckpoint
 
@@ -644,7 +650,7 @@ func (u *Uploader) processChildren(
 	return nil
 }
 
-func metadataEquals(e1, e2 fs.Entry) bool {
+func commonMetadataEquals(e1, e2 fs.Entry) bool {
 	if l, r := e1.ModTime(), e2.ModTime(); !l.Equal(r) {
 		return false
 	}
@@ -653,11 +659,19 @@ func metadataEquals(e1, e2 fs.Entry) bool {
 		return false
 	}
 
-	if l, r := e1.Size(), e2.Size(); l != r {
+	if l, r := e1.Owner(), e2.Owner(); l != r {
 		return false
 	}
 
-	if l, r := e1.Owner(), e2.Owner(); l != r {
+	return true
+}
+
+func metadataEquals(e1, e2 fs.Entry) bool {
+	if !commonMetadataEquals(e1, e2) {
+		return false
+	}
+
+	if l, r := e1.Size(), e2.Size(); l != r {
 		return false
 	}
 
@@ -669,8 +683,15 @@ func findCachedEntry(ctx context.Context, entryRelativePath string, entry fs.Ent
 
 	for _, e := range prevDirs {
 		if ent, err := e.Child(ctx, entry.Name()); err == nil {
-			if metadataEquals(entry, ent) {
-				return ent
+			switch entry.(type) {
+			case fs.StreamingFile:
+				if commonMetadataEquals(entry, ent) {
+					return ent
+				}
+			default:
+				if metadataEquals(entry, ent) {
+					return ent
+				}
 			}
 
 			missedEntry = ent
@@ -693,7 +714,7 @@ func findCachedEntry(ctx context.Context, entryRelativePath string, entry fs.Ent
 
 func (u *Uploader) maybeIgnoreCachedEntry(ctx context.Context, ent fs.Entry) fs.Entry {
 	if h, ok := ent.(object.HasObjectID); ok {
-		if 100*rand.Float64() < u.ForceHashPercentage { // nolint:gosec
+		if 100*rand.Float64() < u.ForceHashPercentage { //nolint:gosec
 			uploadLog(ctx).Debugw("re-hashing cached object", "oid", h.ObjectID())
 			return nil
 		}
@@ -706,8 +727,13 @@ func (u *Uploader) maybeIgnoreCachedEntry(ctx context.Context, ent fs.Entry) fs.
 
 func (u *Uploader) effectiveParallelFileReads(pol *policy.Policy) int {
 	p := u.ParallelUploads
-	max := pol.UploadPolicy.MaxParallelFileReads.OrDefault(runtime.NumCPU())
+	if p > 0 {
+		// command-line override takes precedence.
+		return p
+	}
 
+	// use policy setting or number of CPUs.
+	max := pol.UploadPolicy.MaxParallelFileReads.OrDefault(runtime.NumCPU())
 	if p < 1 || p > max {
 		return max
 	}
@@ -768,7 +794,7 @@ func (u *Uploader) processDirectoryEntries(
 	return dirReadError{err}
 }
 
-// nolint:funlen
+//nolint:funlen
 func (u *Uploader) processSingle(
 	ctx context.Context,
 	entry fs.Entry,
@@ -793,6 +819,8 @@ func (u *Uploader) processSingle(
 
 			// compute entryResult now, cachedEntry is short-lived
 			cachedDirEntry, err := newDirEntry(entry, entry.Name(), cachedEntry.(object.HasObjectID).ObjectID())
+			u.Progress.FinishedFile(entryRelativePath, err)
+
 			if err != nil {
 				return errors.Wrap(err, "unable to create dir entry")
 			}
@@ -937,7 +965,7 @@ func maybeLogEntryProcessed(logger logging.Logger, level policy.LogDetail, msg, 
 		keyValuePairs = append(keyValuePairs, "dur", timer.Elapsed())
 	}
 
-	// nolint:nestif
+	//nolint:nestif
 	if de != nil {
 		if level >= minDetailLevelSize {
 			if ds := de.DirSummary; ds != nil {
@@ -1091,7 +1119,7 @@ func uploadDirInternal(
 			return nil, errors.Wrapf(err, "error checkpointing children")
 		}
 
-		checkpointManifest := thisCheckpointBuilder.Build(directory.ModTime(), IncompleteReasonCheckpoint)
+		checkpointManifest := thisCheckpointBuilder.Build(fs.UTCTimestampFromTime(directory.ModTime()), IncompleteReasonCheckpoint)
 		oid, err := writeDirManifest(ctx, u.repo, dirRelativePath, checkpointManifest)
 		if err != nil {
 			return nil, errors.Wrap(err, "error writing dir manifest")
@@ -1105,7 +1133,7 @@ func uploadDirInternal(
 		return nil, err
 	}
 
-	dirManifest := thisDirBuilder.Build(directory.ModTime(), u.incompleteReason())
+	dirManifest := thisDirBuilder.Build(fs.UTCTimestampFromTime(directory.ModTime()), u.incompleteReason())
 
 	oid, err := writeDirManifest(ctx, u.repo, dirRelativePath, dirManifest)
 	if err != nil {
@@ -1205,7 +1233,7 @@ func (u *Uploader) Upload(
 
 	var err error
 
-	s.StartTime = u.repo.Time()
+	s.StartTime = fs.UTCTimestampFromTime(u.repo.Time())
 
 	var scanWG sync.WaitGroup
 
@@ -1255,7 +1283,7 @@ func (u *Uploader) Upload(
 	scanWG.Wait()
 
 	s.IncompleteReason = u.incompleteReason()
-	s.EndTime = u.repo.Time()
+	s.EndTime = fs.UTCTimestampFromTime(u.repo.Time())
 	s.Stats = *u.stats
 
 	return s, nil

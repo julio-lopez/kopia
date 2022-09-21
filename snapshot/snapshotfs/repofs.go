@@ -54,7 +54,7 @@ func (e *repositoryEntry) Size() int64 {
 }
 
 func (e *repositoryEntry) ModTime() time.Time {
-	return e.metadata.ModTime
+	return e.metadata.ModTime.ToTime()
 }
 
 func (e *repositoryEntry) ObjectID() object.ID {
@@ -280,7 +280,7 @@ func DirectoryEntry(rep repo.Repository, objectID object.ID, dirSummary *fs.Dire
 		DirSummary:  dirSummary,
 	})
 
-	return d.(fs.Directory) // nolint:forcetypeassert
+	return d.(fs.Directory) //nolint:forcetypeassert
 }
 
 // SnapshotRoot returns fs.Entry representing the root of a snapshot.

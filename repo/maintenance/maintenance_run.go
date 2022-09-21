@@ -61,7 +61,7 @@ func shouldRun(ctx context.Context, rep repo.DirectRepository, p *Params) (Mode,
 
 	// check full cycle first, as it does more than the quick cycle
 	if p.FullCycle.Enabled {
-		if rep.Time().After(s.NextFullMaintenanceTime) {
+		if !rep.Time().Before(s.NextFullMaintenanceTime) {
 			log(ctx).Debugf("due for full maintenance cycle")
 			return ModeFull, nil
 		}
@@ -73,7 +73,7 @@ func shouldRun(ctx context.Context, rep repo.DirectRepository, p *Params) (Mode,
 
 	// no time for full cycle, check quick cycle
 	if p.QuickCycle.Enabled {
-		if rep.Time().After(s.NextQuickMaintenanceTime) {
+		if !rep.Time().Before(s.NextQuickMaintenanceTime) {
 			log(ctx).Debugf("due for quick maintenance cycle")
 			return ModeQuick, nil
 		}
@@ -246,9 +246,14 @@ func Run(ctx context.Context, runParams RunParameters, safety SafetyParameters) 
 }
 
 func runQuickMaintenance(ctx context.Context, runParams RunParameters, safety SafetyParameters) error {
-	if _, ok := runParams.rep.ContentManager().EpochManager(); ok {
+	_, ok, emerr := runParams.rep.ContentManager().EpochManager()
+	if ok {
 		log(ctx).Debugf("quick maintenance not required for epoch manager")
 		return nil
+	}
+
+	if emerr != nil {
+		return errors.Wrap(emerr, "epoch manager")
 	}
 
 	s, err := GetSchedule(ctx, runParams.rep)
@@ -321,7 +326,11 @@ func runTaskCleanupLogs(ctx context.Context, runParams RunParameters, s *Schedul
 }
 
 func runTaskCleanupEpochManager(ctx context.Context, runParams RunParameters, s *Schedule) error {
-	em, ok := runParams.rep.ContentManager().EpochManager()
+	em, ok, emerr := runParams.rep.ContentManager().EpochManager()
+	if emerr != nil {
+		return errors.Wrap(emerr, "epoch manager")
+	}
+
 	if !ok {
 		return nil
 	}
@@ -445,7 +454,7 @@ func shouldQuickRewriteContents(s *Schedule, safety SafetyParameters) bool {
 		return true
 	}
 
-	return latestBlobDeleteTime.After(latestContentRewriteEndTime)
+	return !latestBlobDeleteTime.Before(latestContentRewriteEndTime)
 }
 
 // shouldFullRewriteContents returns true if it's currently ok to rewrite contents.
@@ -462,7 +471,7 @@ func shouldFullRewriteContents(s *Schedule, safety SafetyParameters) bool {
 		return true
 	}
 
-	return latestBlobDeleteTime.After(latestContentRewriteEndTime)
+	return !latestBlobDeleteTime.Before(latestContentRewriteEndTime)
 }
 
 // shouldDeleteOrphanedPacks returns true if it's ok to delete orphaned packs.
@@ -471,7 +480,7 @@ func shouldFullRewriteContents(s *Schedule, safety SafetyParameters) bool {
 // rewritten packs become orphaned immediately but if we don't wait before their deletion
 // clients who have old indexes cached may be trying to read pre-rewrite blobs.
 func shouldDeleteOrphanedPacks(now time.Time, s *Schedule, safety SafetyParameters) bool {
-	return now.After(nextBlobDeleteTime(s, safety))
+	return !now.Before(nextBlobDeleteTime(s, safety))
 }
 
 func nextBlobDeleteTime(s *Schedule, safety SafetyParameters) time.Time {
@@ -484,7 +493,7 @@ func nextBlobDeleteTime(s *Schedule, safety SafetyParameters) time.Time {
 }
 
 func hadRecentFullRewrite(s *Schedule) bool {
-	return maxEndTime(s.Runs[TaskRewriteContentsFull]).After(maxEndTime(s.Runs[TaskRewriteContentsQuick]))
+	return !maxEndTime(s.Runs[TaskRewriteContentsFull]).Before(maxEndTime(s.Runs[TaskRewriteContentsQuick]))
 }
 
 func maxEndTime(taskRuns ...[]RunInfo) time.Time {
@@ -513,17 +522,17 @@ func maxEndTime(taskRuns ...[]RunInfo) time.Time {
 //
 // Step #1 - race between GC and snapshot creation:
 //
-//  - 'snapshot gc' runs and marks unreachable contents as deleted
-//  - 'snapshot create' runs at approximately the same time and creates manifest
-//    which makes some contents live again.
+//   - 'snapshot gc' runs and marks unreachable contents as deleted
+//   - 'snapshot create' runs at approximately the same time and creates manifest
+//     which makes some contents live again.
 //
 // As a result of this race, GC has marked some entries as incorrectly deleted, but we
 // can still return them since they are not dropped from the index.
 //
 // Step #2 - fix incorrectly deleted contents
 //
-//  - subsequent 'snapshot gc' runs and undeletes contents incorrectly
-//    marked as deleted in Step 1.
+//   - subsequent 'snapshot gc' runs and undeletes contents incorrectly
+//     marked as deleted in Step 1.
 //
 // After Step 2 completes, we know for sure that all contents deleted before Step #1 has started
 // are safe to drop from the index because Step #2 has fixed them, as long as all snapshots that

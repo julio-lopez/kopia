@@ -18,6 +18,7 @@ import (
 	"github.com/kopia/kopia/internal/units"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/blob"
+	"github.com/kopia/kopia/repo/format"
 )
 
 type commandRepositorySyncTo struct {
@@ -56,7 +57,7 @@ func (c *commandRepositorySyncTo) setup(svc advancedAppServices, parent commandP
 		cc := cmd.Command(prov.Name, "Synchronize repository data to another repository in "+prov.Description)
 		f.Setup(svc, cc)
 		cc.Action(func(kpc *kingpin.ParseContext) error {
-			// nolint:wrapcheck
+			//nolint:wrapcheck
 			return svc.runAppWithContext(kpc.SelectedCommand, func(ctx context.Context) error {
 				st, err := f.Connect(ctx, false, 0)
 				if err != nil {
@@ -68,7 +69,7 @@ func (c *commandRepositorySyncTo) setup(svc advancedAppServices, parent commandP
 					return errors.Wrap(err, "open repository")
 				}
 
-				defer rep.Close(ctx) // nolint:errcheck
+				defer rep.Close(ctx) //nolint:errcheck
 
 				dr, ok := rep.(repo.DirectRepository)
 				if !ok {
@@ -345,21 +346,21 @@ func (c *commandRepositorySyncTo) ensureRepositoriesHaveSameFormatBlob(ctx conte
 	var srcData gather.WriteBuffer
 	defer srcData.Close()
 
-	if err := src.GetBlob(ctx, repo.FormatBlobID, 0, -1, &srcData); err != nil {
+	if err := src.GetBlob(ctx, format.KopiaRepositoryBlobID, 0, -1, &srcData); err != nil {
 		return errors.Wrap(err, "error reading format blob")
 	}
 
 	var dstData gather.WriteBuffer
 	defer dstData.Close()
 
-	if err := dst.GetBlob(ctx, repo.FormatBlobID, 0, -1, &dstData); err != nil {
+	if err := dst.GetBlob(ctx, format.KopiaRepositoryBlobID, 0, -1, &dstData); err != nil {
 		// target does not have format blob, save it there first.
 		if errors.Is(err, blob.ErrBlobNotFound) {
 			if c.repositorySyncDestinationMustExist {
 				return errors.Errorf("destination repository does not have a format blob")
 			}
 
-			return errors.Wrap(dst.PutBlob(ctx, repo.FormatBlobID, srcData.Bytes(), blob.PutOptions{}), "error saving format blob")
+			return errors.Wrap(dst.PutBlob(ctx, format.KopiaRepositoryBlobID, srcData.Bytes(), blob.PutOptions{}), "error saving format blob")
 		}
 
 		return errors.Wrap(err, "error reading destination repository format blob")

@@ -13,6 +13,7 @@ import (
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/throttling"
 	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/manifest"
 	"github.com/kopia/kopia/repo/object"
 )
@@ -51,13 +52,12 @@ type RepositoryWriter interface {
 type DirectRepository interface {
 	Repository
 
-	ObjectFormat() object.Format
-	BlobCfg() content.BlobCfgBlob
+	ObjectFormat() format.ObjectFormat
+	FormatManager() *format.Manager
 	BlobReader() blob.Reader
 	BlobVolume() blob.Volume
 	ContentReader() content.Reader
 	IndexBlobs(ctx context.Context, includeInactive bool) ([]content.IndexBlobInfo, error)
-	Crypter() *content.Crypter
 	NewDirectWriter(ctx context.Context, opt WriteSessionOptions) (context.Context, DirectRepositoryWriter, error)
 	AlsoLogToContentLog(ctx context.Context) context.Context
 	UniqueID() []byte
@@ -74,25 +74,22 @@ type DirectRepositoryWriter interface {
 	DirectRepository
 	BlobStorage() blob.Storage
 	ContentManager() *content.WriteManager
-	SetParameters(ctx context.Context, m content.MutableParameters, blobcfg content.BlobCfgBlob) error
-	ChangePassword(ctx context.Context, newPassword string) error
-	GetUpgradeLockIntent(ctx context.Context) (*UpgradeLockIntent, error)
-	SetUpgradeLockIntent(ctx context.Context, l UpgradeLockIntent) (*UpgradeLockIntent, error)
-	CommitUpgrade(ctx context.Context) error
-	RollbackUpgrade(ctx context.Context) error
+	// SetParameters(ctx context.Context, m format.MutableParameters, blobcfg format.BlobStorageConfiguration, requiredFeatures []feature.Required) error
+	// ChangePassword(ctx context.Context, newPassword string) error
+	// GetUpgradeLockIntent(ctx context.Context) (*format.UpgradeLockIntent, error)
+	// SetUpgradeLockIntent(ctx context.Context, l format.UpgradeLockIntent) (*format.UpgradeLockIntent, error)
+	// CommitUpgrade(ctx context.Context) error
+	// RollbackUpgrade(ctx context.Context) error
 }
 
 type directRepositoryParameters struct {
-	uniqueID            []byte
-	configFile          string
-	cachingOptions      content.CachingOptions
-	cliOpts             ClientOptions
-	timeNow             func() time.Time
-	formatBlob          *formatBlob
-	blobCfgBlob         content.BlobCfgBlob
-	formatEncryptionKey []byte
-	nextWriterID        *int32
-	throttler           throttling.SettableThrottler
+	configFile     string
+	cachingOptions content.CachingOptions
+	cliOpts        ClientOptions
+	timeNow        func() time.Time
+	fmgr           *format.Manager
+	nextWriterID   *int32
+	throttler      throttling.SettableThrottler
 }
 
 // directRepository is an implementation of repository that directly manipulates underlying storage.
@@ -110,14 +107,14 @@ type directRepository struct {
 
 // DeriveKey derives encryption key of the provided length from the master key.
 func (r *directRepository) DeriveKey(purpose []byte, keyLength int) []byte {
-	if r.cmgr.ContentFormat().EnablePasswordChange {
-		return deriveKeyFromMasterKey(r.cmgr.ContentFormat().MasterKey, r.uniqueID, purpose, keyLength)
+	if r.cmgr.ContentFormat().SupportsPasswordChange() {
+		return format.DeriveKeyFromMasterKey(r.cmgr.ContentFormat().GetMasterKey(), r.UniqueID(), purpose, keyLength)
 	}
 
 	// version of kopia <v0.9 had a bug where certain keys were derived directly from
 	// the password and not from the random master key. This made it impossible to change
 	// password.
-	return deriveKeyFromMasterKey(r.formatEncryptionKey, r.uniqueID, purpose, keyLength)
+	return format.DeriveKeyFromMasterKey(r.fmgr.FormatEncryptionKey(), r.UniqueID(), purpose, keyLength)
 }
 
 // ClientOptions returns client options.
@@ -145,11 +142,6 @@ func (r *directRepository) ConfigFilename() string {
 	return r.configFile
 }
 
-// Crypter returns a Crypter object.
-func (r *directRepository) Crypter() *content.Crypter {
-	return r.sm.Crypter()
-}
-
 // NewObjectWriter creates an object writer.
 func (r *directRepository) NewObjectWriter(ctx context.Context, opt object.WriterOptions) object.Writer {
 	return r.omgr.NewWriter(ctx, opt)
@@ -157,7 +149,7 @@ func (r *directRepository) NewObjectWriter(ctx context.Context, opt object.Write
 
 // ConcatenateObjects creates a concatenated objects from the provided object IDs.
 func (r *directRepository) ConcatenateObjects(ctx context.Context, objectIDs []object.ID) (object.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.omgr.Concatenate(ctx, objectIDs)
 }
 
@@ -168,37 +160,37 @@ func (r *directRepository) DisableIndexRefresh() {
 
 // OpenObject opens the reader for a given object, returns object.ErrNotFound.
 func (r *directRepository) OpenObject(ctx context.Context, id object.ID) (object.Reader, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.Open(ctx, r.cmgr, id)
 }
 
 // VerifyObject verifies that the given object is stored properly in a repository and returns backing content IDs.
 func (r *directRepository) VerifyObject(ctx context.Context, id object.ID) ([]content.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.VerifyObject(ctx, r.cmgr, id)
 }
 
 // GetManifest returns the given manifest data and metadata.
 func (r *directRepository) GetManifest(ctx context.Context, id manifest.ID, data interface{}) (*manifest.EntryMetadata, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.mmgr.Get(ctx, id, data)
 }
 
 // PutManifest saves the given manifest payload with a set of labels.
 func (r *directRepository) PutManifest(ctx context.Context, labels map[string]string, payload interface{}) (manifest.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.mmgr.Put(ctx, labels, payload)
 }
 
 // FindManifests returns metadata for manifests matching given set of labels.
 func (r *directRepository) FindManifests(ctx context.Context, labels map[string]string) ([]*manifest.EntryMetadata, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.mmgr.Find(ctx, labels)
 }
 
 // DeleteManifest deletes the manifest with a given ID.
 func (r *directRepository) DeleteManifest(ctx context.Context, id manifest.ID) error {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.mmgr.Delete(ctx, id)
 }
 
@@ -209,19 +201,19 @@ func (r *directRepository) PrefetchContents(ctx context.Context, contentIDs []co
 
 // PrefetchObjects brings the requested objects into the cache.
 func (r *directRepository) PrefetchObjects(ctx context.Context, objectIDs []object.ID, hint string) ([]content.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.PrefetchBackingContents(ctx, r.cmgr, objectIDs, hint)
 }
 
 // ListActiveSessions returns the map of active sessions.
 func (r *directRepository) ListActiveSessions(ctx context.Context) (map[content.SessionID]*content.SessionInfo, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.cmgr.ListActiveSessions(ctx)
 }
 
 // ContentInfo gets the information about particular content.
 func (r *directRepository) ContentInfo(ctx context.Context, contentID content.ID) (content.Info, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.cmgr.ContentInfo(ctx, contentID)
 }
 
@@ -305,13 +297,13 @@ func (r *directRepository) Flush(ctx context.Context) error {
 }
 
 // ObjectFormat returns the object format.
-func (r *directRepository) ObjectFormat() object.Format {
+func (r *directRepository) ObjectFormat() format.ObjectFormat {
 	return r.omgr.Format
 }
 
 // UniqueID returns unique repository ID from which many keys and secrets are derived.
 func (r *directRepository) UniqueID() []byte {
-	return r.uniqueID
+	return r.fmgr.UniqueID()
 }
 
 // BlobReader returns the blob reader.
@@ -331,7 +323,7 @@ func (r *directRepository) ContentReader() content.Reader {
 
 // IndexBlobs returns the index blobs in use.
 func (r *directRepository) IndexBlobs(ctx context.Context, includeInactive bool) ([]content.IndexBlobInfo, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.cmgr.IndexBlobs(ctx, includeInactive)
 }
 
@@ -345,8 +337,9 @@ func (r *directRepository) Time() time.Time {
 	return defaultTime(r.timeNow)()
 }
 
-func (r *directRepository) BlobCfg() content.BlobCfgBlob {
-	return r.directRepositoryParameters.blobCfgBlob
+// FormatManager returns the format manager.
+func (r *directRepository) FormatManager() *format.Manager {
+	return r.fmgr
 }
 
 // WriteSessionOptions describes options for a write session.

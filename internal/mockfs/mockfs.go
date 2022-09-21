@@ -14,7 +14,8 @@ import (
 )
 
 // DefaultModTime is the default modification time for mock filesystem entries.
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var DefaultModTime = time.Date(2021, 1, 2, 3, 4, 5, 0, time.UTC)
 
 // ReaderSeekerCloser implements io.Reader, io.Seeker and io.Closer.
@@ -107,6 +108,25 @@ func (imd *Directory) AddFile(name string, content []byte, permissions os.FileMo
 		source: func() (ReaderSeekerCloser, error) {
 			return readerSeekerCloser{bytes.NewReader(content)}, nil
 		},
+	}
+
+	imd.addChild(file)
+
+	return file
+}
+
+// AddFileWithSource adds a mock file with the specified name, permissions, and
+// given source function for getting a Reader instance.
+func (imd *Directory) AddFileWithSource(name string, permissions os.FileMode, source func() (ReaderSeekerCloser, error)) *File {
+	imd, name = imd.resolveSubdir(name)
+	file := &File{
+		entry: entry{
+			name:    name,
+			mode:    permissions,
+			size:    0,
+			modTime: DefaultModTime,
+		},
+		source: source,
 	}
 
 	imd.addChild(file)
@@ -238,7 +258,7 @@ func (imd *Directory) Subdir(name ...string) *Directory {
 			panic(fmt.Sprintf("'%s' is not a directory in '%s'", n, i.Name()))
 		}
 
-		// nolint:forcetypeassert
+		//nolint:forcetypeassert
 		i = i2.(*Directory)
 	}
 
@@ -355,7 +375,7 @@ func NewDirectory() *Directory {
 	return &Directory{
 		entry: entry{
 			name:    "<root>",
-			mode:    0o777 | os.ModeDir, // nolint:gomnd
+			mode:    0o777 | os.ModeDir, //nolint:gomnd
 			modTime: DefaultModTime,
 		},
 	}

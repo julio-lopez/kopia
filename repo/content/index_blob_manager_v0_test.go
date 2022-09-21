@@ -24,6 +24,7 @@ import (
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/logging"
 	"github.com/kopia/kopia/repo/encryption"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/hashing"
 )
 
@@ -156,7 +157,8 @@ func pickRandomActionTestIndexBlobManagerStress() action {
 
 // TestIndexBlobManagerStress launches N actors, each randomly writing new index blobs,
 // verifying that all blobs previously written by it are correct and randomly compacting blobs.
-// nolint:gocyclo
+//
+//nolint:gocyclo
 func TestIndexBlobManagerStress(t *testing.T) {
 	t.Parallel()
 	testutil.SkipNonDeterministicTestUnderCodeCoverage(t)
@@ -699,7 +701,7 @@ func getAllFakeContentsInternal(ctx context.Context, t *testing.T, m *indexBlobM
 func assertBlobCounts(t *testing.T, data blobtesting.DataMap, wantN, wantM, wantL int) {
 	t.Helper()
 	require.Len(t, keysWithPrefix(data, compactionLogBlobPrefix), wantM)
-	require.Len(t, keysWithPrefix(data, IndexBlobPrefix), wantN)
+	require.Len(t, keysWithPrefix(data, LegacyIndexBlobPrefix), wantN)
 	require.Len(t, keysWithPrefix(data, "l"), wantL)
 }
 
@@ -765,7 +767,7 @@ func assertIndexBlobList(t *testing.T, m *indexBlobManagerV0, wantMD ...blob.Met
 func newIndexBlobManagerForTesting(t *testing.T, st blob.Storage, localTimeNow func() time.Time) *indexBlobManagerV0 {
 	t.Helper()
 
-	p := &FormattingOptions{
+	p := &format.ContentFormat{
 		Encryption: encryption.DefaultAlgorithm,
 		Hash:       hashing.DefaultAlgorithm,
 	}
@@ -783,7 +785,7 @@ func newIndexBlobManagerForTesting(t *testing.T, st blob.Storage, localTimeNow f
 	st = ownwrites.NewWrapper(
 		st,
 		blobtesting.NewMapStorage(blobtesting.DataMap{}, nil, nil),
-		[]blob.ID{IndexBlobPrefix, compactionLogBlobPrefix, cleanupBlobPrefix},
+		[]blob.ID{LegacyIndexBlobPrefix, compactionLogBlobPrefix, cleanupBlobPrefix},
 		15*time.Minute,
 	)
 
@@ -794,16 +796,11 @@ func newIndexBlobManagerForTesting(t *testing.T, st blob.Storage, localTimeNow f
 		enc: &encryptedBlobMgr{
 			st:             st,
 			indexBlobCache: nil,
-			crypter: &Crypter{
-				HashFunction: hf,
-				Encryptor:    enc,
-			},
-			log: log,
+			crypter:        staticCrypter{hf, enc},
+			log:            log,
 		},
-		timeNow:      localTimeNow,
-		maxPackSize:  20 << 20,
-		indexVersion: 1,
-		log:          log,
+		timeNow: localTimeNow,
+		log:     log,
 	}
 
 	return m

@@ -3,7 +3,6 @@ package snapshotfs
 import (
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/snapshot"
@@ -41,7 +40,7 @@ func (b *DirManifestBuilder) AddEntry(de *snapshot.DirEntry) {
 		b.summary.MaxModTime = de.ModTime
 	}
 
-	// nolint:exhaustive
+	//nolint:exhaustive
 	switch de.Type {
 	case snapshot.EntryTypeSymlink:
 		b.summary.TotalSymlinkCount++
@@ -84,7 +83,7 @@ func (b *DirManifestBuilder) AddFailedEntry(relPath string, isIgnoredError bool,
 }
 
 // Build builds the directory manifest.
-func (b *DirManifestBuilder) Build(dirModTime time.Time, incompleteReason string) *snapshot.DirManifest {
+func (b *DirManifestBuilder) Build(dirModTime fs.UTCTimestamp, incompleteReason string) *snapshot.DirManifest {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

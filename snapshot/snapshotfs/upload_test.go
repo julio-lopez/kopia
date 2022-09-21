@@ -1,6 +1,7 @@
 package snapshotfs
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -133,7 +135,7 @@ func newUploadTestHarness(ctx context.Context, t *testing.T) *uploadTestHarness 
 	return th
 }
 
-// nolint:gocyclo
+//nolint:gocyclo
 func TestUpload(t *testing.T) {
 	ctx := testlogging.Context(t)
 	th := newUploadTestHarness(ctx, t)
@@ -522,6 +524,91 @@ func TestUpload_SubDirectoryReadFailureSomeIgnoredNoFailFast(t *testing.T) {
 	)
 }
 
+type mockProgress struct {
+	UploadProgress
+	finishedFileCheck func(string, error)
+}
+
+func (mp *mockProgress) FinishedFile(relativePath string, err error) {
+	defer mp.UploadProgress.FinishedFile(relativePath, err)
+
+	mp.finishedFileCheck(relativePath, err)
+}
+
+func TestUpload_FinishedFileProgress(t *testing.T) {
+	ctx := testlogging.Context(t)
+	th := newUploadTestHarness(ctx, t)
+	mu := sync.Mutex{}
+	filesFinished := 0
+
+	defer th.cleanup()
+
+	t.Logf("checking FinishedFile callbacks")
+
+	root := mockfs.NewDirectory()
+	root.AddFile("f1", []byte{'1', '2', '3'}, 0o777)
+	root.AddFileWithSource("f2", 0o777, func() (mockfs.ReaderSeekerCloser, error) {
+		return nil, assert.AnError
+	})
+
+	u := NewUploader(th.repo)
+	u.ForceHashPercentage = 0
+	u.Progress = &mockProgress{
+		UploadProgress: u.Progress,
+		finishedFileCheck: func(relativePath string, err error) {
+			defer func() {
+				mu.Lock()
+				defer mu.Unlock()
+
+				filesFinished++
+			}()
+
+			assert.Contains(t, []string{"f1", "f2"}, filepath.Base(relativePath))
+
+			if strings.Contains(relativePath, "f2") {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+		},
+	}
+
+	trueValue := policy.OptionalBool(true)
+	policyTree := policy.BuildTree(map[string]*policy.Policy{
+		".": {
+			ErrorHandlingPolicy: policy.ErrorHandlingPolicy{
+				IgnoreFileErrors:      &trueValue,
+				IgnoreDirectoryErrors: &trueValue,
+			},
+		},
+	}, policy.DefaultPolicy)
+
+	man, err := u.Upload(ctx, root, policyTree, snapshot.SourceInfo{})
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(&man.Stats.ErrorCount), "ErrorCount")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.IgnoredErrorCount), "IgnoredErrorCount")
+	assert.Equal(t, int32(0), atomic.LoadInt32(&man.Stats.CachedFiles), "CachedFiles")
+	assert.Equal(t, int32(2), atomic.LoadInt32(&man.Stats.NonCachedFiles), "NonCachedFiles")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.TotalDirectoryCount), "TotalDirectoryCount")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.TotalFileCount), "TotalFileCount")
+	assert.Equal(t, 2, filesFinished, "FinishedFile calls")
+
+	// Upload a second time to check for cached files.
+	filesFinished = 0
+	man, err = u.Upload(ctx, root, policyTree, snapshot.SourceInfo{}, man)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(&man.Stats.ErrorCount), "ErrorCount")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.IgnoredErrorCount), "IgnoredErrorCount")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.CachedFiles), "CachedFiles")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.NonCachedFiles), "NonCachedFiles")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&man.Stats.TotalDirectoryCount), "TotalDirectoryCount")
+	assert.Equal(t, int32(0), atomic.LoadInt32(&man.Stats.TotalFileCount), "TotalFileCount")
+	assert.Equal(t, 2, filesFinished, "FinishedFile calls")
+}
+
 func TestUploadWithCheckpointing(t *testing.T) {
 	ctx := testlogging.Context(t)
 	th := newUploadTestHarness(ctx, t)
@@ -592,7 +679,7 @@ func TestParallelUploadUploadsBlobsInParallel(t *testing.T) {
 	th := newUploadTestHarness(ctx, t)
 
 	u := NewUploader(th.repo)
-	u.ParallelUploads = 10
+	u.ParallelUploads = 13
 
 	// no faults for first blob write - session marker.
 	th.faulty.AddFault(blobtesting.MethodPutBlob)
@@ -617,6 +704,8 @@ func TestParallelUploadUploadsBlobsInParallel(t *testing.T) {
 	u.disableEstimation = true
 
 	policyTree := policy.BuildTree(nil, policy.DefaultPolicy)
+
+	require.Equal(t, 13, u.effectiveParallelFileReads(policyTree.EffectivePolicy()))
 
 	si := snapshot.SourceInfo{
 		UserName: "user",
@@ -768,6 +857,78 @@ func TestUpload_VirtualDirectoryWithStreamingFile(t *testing.T) {
 	if got, want := atomic.LoadInt32(&man.Stats.TotalFileCount), int32(1); got != want {
 		// must have one file
 		t.Fatalf("unexpected manifest file count: %v, want %v", got, want)
+	}
+}
+
+func TestUpload_VirtualDirectoryWithStreamingFileWithModTime(t *testing.T) {
+	content := []byte("Streaming Temporary file content")
+	mt := time.Date(2021, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	cases := []struct {
+		desc          string
+		getFile       func() fs.StreamingFile
+		cachedFiles   int32
+		uploadedFiles int32
+	}{
+		{
+			desc: "CurrentTime",
+			getFile: func() fs.StreamingFile {
+				return virtualfs.StreamingFileFromReader("a", bytes.NewReader(content))
+			},
+			cachedFiles:   0,
+			uploadedFiles: 1,
+		},
+		{
+			desc: "FixedTime",
+			getFile: func() fs.StreamingFile {
+				return virtualfs.StreamingFileWithModTimeFromReader("a", mt, bytes.NewReader(content))
+			},
+			cachedFiles:   1,
+			uploadedFiles: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx := testlogging.Context(t)
+			th := newUploadTestHarness(ctx, t)
+
+			defer th.cleanup()
+
+			u := NewUploader(th.repo)
+			u.ForceHashPercentage = 0
+
+			policyTree := policy.BuildTree(nil, policy.DefaultPolicy)
+
+			staticRoot := virtualfs.NewStaticDirectory("rootdir", []fs.Entry{
+				tc.getFile(),
+			})
+
+			// First snapshot should upload all files/directories.
+			man1, err := u.Upload(ctx, staticRoot, policyTree, snapshot.SourceInfo{})
+			require.NoError(t, err)
+			require.Equal(t, int32(0), atomic.LoadInt32(&man1.Stats.CachedFiles))
+			require.Equal(t, int32(1), atomic.LoadInt32(&man1.Stats.NonCachedFiles))
+			require.Equal(t, int32(1), atomic.LoadInt32(&man1.Stats.TotalDirectoryCount))
+			require.Equal(t, int32(1), atomic.LoadInt32(&man1.Stats.TotalFileCount))
+
+			// wait a little bit to ensure clock moves forward which is not always the case on Windows.
+			time.Sleep(100 * time.Millisecond)
+
+			// Rebuild tree because reader only works once.
+			staticRoot = virtualfs.NewStaticDirectory("rootdir", []fs.Entry{
+				tc.getFile(),
+			})
+
+			// Second upload may find some cached files depending on timestamps.
+			man2, err := u.Upload(ctx, staticRoot, policyTree, snapshot.SourceInfo{}, man1)
+			require.NoError(t, err)
+
+			assert.Equal(t, int32(1), atomic.LoadInt32(&man2.Stats.TotalDirectoryCount))
+			assert.Equal(t, tc.cachedFiles, atomic.LoadInt32(&man2.Stats.CachedFiles))
+			assert.Equal(t, tc.uploadedFiles, atomic.LoadInt32(&man2.Stats.NonCachedFiles))
+			// Cached files don't count towards the total file count.
+			assert.Equal(t, tc.uploadedFiles, atomic.LoadInt32(&man2.Stats.TotalFileCount))
+		})
 	}
 }
 
@@ -1088,7 +1249,7 @@ type loggedAction struct {
 	keysAndValues map[string]interface{}
 }
 
-// nolint:maintidx
+//nolint:maintidx
 func TestUploadLogging(t *testing.T) {
 	sourceDir := mockfs.NewDirectory()
 	sourceDir.AddFile("f1", []byte{1, 2, 3}, defaultPermissions)

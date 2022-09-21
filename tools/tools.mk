@@ -102,7 +102,7 @@ retry:=
 endif
 
 # tool versions
-GOLANGCI_LINT_VERSION=1.47.0
+GOLANGCI_LINT_VERSION=1.48.0
 CHECKLOCKS_VERSION=release-20220314.0
 NODE_VERSION=16.13.0
 HUGO_VERSION=0.89.2
@@ -157,6 +157,7 @@ checklocks=$(checklocks_dir)$(slash)bin$(slash)checklocks$(exe_suffix)
 $(checklocks): export GOPATH=$(checklocks_dir)
 $(checklocks):
 	go install gvisor.dev/gvisor/tools/checklocks/cmd/checklocks@$(CHECKLOCKS_VERSION)
+	go clean -modcache
 
 # hugo
 hugo_dir=$(TOOLS_DIR)$(slash)hugo-$(HUGO_VERSION)

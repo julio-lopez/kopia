@@ -19,7 +19,7 @@ import (
 	"github.com/kopia/kopia/tests/testenv"
 )
 
-// nolint:thelper
+//nolint:thelper
 func runInBrowser(t *testing.T, run func(ctx context.Context, sp *testutil.ServerParameters, tc *TestContext)) {
 	if os.Getenv("HTMLUI_E2E_TEST") == "" {
 		t.Skip()
@@ -42,7 +42,7 @@ func runInBrowser(t *testing.T, run func(ctx context.Context, sp *testutil.Serve
 
 	var sp testutil.ServerParameters
 
-	_, kill := e.RunAndProcessStderr(t, sp.ProcessOutput,
+	args := []string{
 		"server", "start",
 		"--ui",
 		"--address=localhost:0",
@@ -54,8 +54,14 @@ func runInBrowser(t *testing.T, run func(ctx context.Context, sp *testutil.Serve
 		"--without-password",
 		"--override-hostname=the-hostname",
 		"--override-username=the-username",
-		// "--html="+os.Getenv("HTMLUI_BUILD_DIR"),
-	)
+	}
+
+	if h := os.Getenv("HTMLUI_BUILD_DIR"); h != "" {
+		args = append(args, "--html="+os.Getenv("HTMLUI_BUILD_DIR"))
+	}
+
+	_, kill := e.RunAndProcessStderr(t, sp.ProcessOutput, args...)
+
 	defer kill()
 
 	t.Logf("detected server parameters %#v", sp)
@@ -122,8 +128,10 @@ func TestEndToEndTest(t *testing.T) {
 			chromedp.Click("button[data-testid='provider-filesystem']"),
 			tc.captureScreenshot("filesystem-setup"),
 
-			tc.log("entering password"),
+			tc.log("entering repo path: "+repoPath),
 			chromedp.SendKeys("input[data-testid='control-path']", repoPath+"\n"),
+
+			tc.log("entering password"),
 			chromedp.SendKeys("input[data-testid='control-password']", "password1"),
 			chromedp.SendKeys("input[data-testid='control-confirmPassword']", "password1\n"),
 
@@ -133,7 +141,10 @@ func TestEndToEndTest(t *testing.T) {
 
 			tc.log("clicking new snapshot"),
 			chromedp.Click(`a[data-testid='new-snapshot']`),
-			chromedp.SendKeys(`input[name='path']`, snap1Path),
+
+			tc.log("entering path:"+snap1Path),
+			chromedp.SendKeys(`input[name='path']`, snap1Path+"\t"),
+			chromedp.Sleep(2*time.Second),
 
 			tc.log("clicking estimate"),
 			chromedp.Click(`button[data-testid='estimate-now']`),

@@ -12,9 +12,9 @@ import (
 
 // ID is an identifier of a repository object. Repository objects can be stored.
 //
-// 1. In a single content block, this is the most common case for small objects.
-// 2. In a series of content blocks with an indirect block pointing at them (multiple indirections are allowed).
-//    This is used for larger files. Object IDs using indirect blocks start with "I"
+//  1. In a single content block, this is the most common case for small objects.
+//  2. In a series of content blocks with an indirect block pointing at them (multiple indirections are allowed).
+//     This is used for larger files. Object IDs using indirect blocks start with "I"
 type ID struct {
 	cid         content.ID
 	indirection byte
@@ -25,7 +25,7 @@ type ID struct {
 func (i ID) MarshalJSON() ([]byte, error) {
 	s := i.String()
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return json.Marshal(s)
 }
 
@@ -48,7 +48,8 @@ func (i *ID) UnmarshalJSON(v []byte) error {
 }
 
 // EmptyID is an empty object ID equivalent to an empty string.
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var EmptyID = ID{}
 
 // HasObjectID exposes the identifier of an object.
@@ -77,6 +78,19 @@ func (i ID) String() string {
 	}
 
 	return indirectPrefix + compressionPrefix + i.cid.String()
+}
+
+// Append appends string representation of ObjectID that is suitable for displaying in the UI.
+func (i ID) Append(out []byte) []byte {
+	for j := 0; j < int(i.indirection); j++ {
+		out = append(out, 'I')
+	}
+
+	if i.compression {
+		out = append(out, 'Z')
+	}
+
+	return i.cid.Append(out)
 }
 
 // IndexObjectID returns the object ID of the underlying index object.

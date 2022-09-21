@@ -9,8 +9,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/fs"
+	"github.com/kopia/kopia/internal/cachedir"
 	"github.com/kopia/kopia/internal/wcmatch"
-	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/logging"
 	"github.com/kopia/kopia/snapshot"
 	"github.com/kopia/kopia/snapshot/policy"
@@ -79,7 +79,7 @@ type ignoreDirectory struct {
 
 func isCorrectCacheDirSignature(ctx context.Context, f fs.File) error {
 	const (
-		validSignature    = repo.CacheDirMarkerHeader
+		validSignature    = cachedir.CacheDirMarkerHeader
 		validSignatureLen = len(validSignature)
 	)
 
@@ -112,7 +112,7 @@ func (d *ignoreDirectory) skipCacheDirectory(ctx context.Context, relativePath s
 		return false
 	}
 
-	e, err := d.Directory.Child(ctx, repo.CacheDirMarkerFile)
+	e, err := d.Directory.Child(ctx, cachedir.CacheDirMarkerFile)
 	if err != nil {
 		return false
 	}
@@ -140,7 +140,7 @@ var _ snapshot.HasDirEntryOrNil = (*ignoreDirectory)(nil)
 
 func (d *ignoreDirectory) DirEntryOrNil(ctx context.Context) (*snapshot.DirEntry, error) {
 	if defp, ok := d.Directory.(snapshot.HasDirEntryOrNil); ok {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return defp.DirEntryOrNil(ctx)
 	}
 	// Ignored directories do not have DirEntry objects.
@@ -157,7 +157,7 @@ func (d *ignoreDirectory) IterateEntries(ctx context.Context, callback func(ctx 
 		return err
 	}
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return d.Directory.IterateEntries(ctx, func(ctx context.Context, e fs.Entry) error {
 		if wrapped, ok := d.maybeWrappedChildEntry(ctx, thisContext, e); ok {
 			return callback(ctx, wrapped)
@@ -194,7 +194,7 @@ func (d *ignoreDirectory) Child(ctx context.Context, name string) (fs.Entry, err
 
 	e, err := d.Directory.Child(ctx, name)
 	if err != nil {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return nil, err
 	}
 

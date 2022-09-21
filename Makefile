@@ -76,6 +76,13 @@ ifneq ($(GOOS)/$(GOARCH),linux/arm)
 endif
 endif
 
+lint-fix: $(linter)
+ifneq ($(GOOS)/$(GOARCH),linux/arm64)
+ifneq ($(GOOS)/$(GOARCH),linux/arm)
+	$(linter) --deadline $(LINTER_DEADLINE) run --fix $(linter_flags)
+endif
+endif
+
 lint-and-log: $(linter)
 	$(linter) --deadline $(LINTER_DEADLINE) run $(linter_flags) | tee .linterr.txt
 
@@ -291,6 +298,12 @@ endurance-tests: export KOPIA_TRACK_CHUNK_ALLOC=1
 endurance-tests: build-integration-test-binary $(gotestsum)
 	go test $(TEST_FLAGS) -count=$(REPEAT_TEST) -parallel $(PARALLEL) -timeout 3600s github.com/kopia/kopia/tests/endurance_test
 
+recovery-tests: export KOPIA_EXE ?= $(KOPIA_INTEGRATION_EXE)
+recovery-tests: GOTESTSUM_FORMAT=testname
+recovery-tests: build-integration-test-binary $(gotestsum)
+	FIO_DOCKER_IMAGE=$(FIO_DOCKER_TAG) \
+	$(GO_TEST) -count=$(REPEAT_TEST) github.com/kopia/kopia/tests/recovery/recovery_test $(TEST_FLAGS)
+
 robustness-tests: export KOPIA_EXE ?= $(KOPIA_INTEGRATION_EXE)
 robustness-tests: GOTESTSUM_FORMAT=testname
 robustness-tests: build-integration-test-binary $(gotestsum)
@@ -330,6 +343,10 @@ endif
 
 htmlui-e2e-test:
 	HTMLUI_E2E_TEST=1 go test -timeout 600s github.com/kopia/kopia/tests/htmlui_e2e_test -v $(TEST_FLAGS)
+
+htmlui-e2e-test-local-htmlui-changes:
+	(cd ../htmlui && npm run build)
+	HTMLUI_E2E_TEST=1 HTMLUI_BUILD_DIR=$(CURDIR)/../htmlui/build go test -timeout 600s github.com/kopia/kopia/tests/htmlui_e2e_test -v $(TEST_FLAGS)
 
 godoc:
 	godoc -http=:33333

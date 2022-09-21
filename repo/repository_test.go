@@ -22,6 +22,7 @@ import (
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/beforeop"
 	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/object"
 )
 
@@ -403,11 +404,11 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 	defer d.Close()
 
 	// verify that the blobcfg retention blob is created
-	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, repo.BlobCfgBlobID, 0, -1, &d))
-	require.NoError(t, env.RepositoryWriter.ChangePassword(ctx, "new-password"))
+	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, format.KopiaBlobCfgBlobID, 0, -1, &d))
+	require.NoError(t, env.RepositoryWriter.FormatManager().ChangePassword(ctx, "new-password"))
 	// verify that the blobcfg retention blob is created and is different after
 	// password-change
-	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, repo.BlobCfgBlobID, 0, -1, &d))
+	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, format.KopiaBlobCfgBlobID, 0, -1, &d))
 
 	// verify that we cannot re-initialize the repo even after password change
 	require.EqualError(t, repo.Initialize(testlogging.Context(t), env.RootStorage(), nil, env.Password),
@@ -417,17 +418,17 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 	{
 		// backup & corrupt the blobcfg blob
 		d.Reset()
-		require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, repo.BlobCfgBlobID, 0, -1, &d))
+		require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, format.KopiaBlobCfgBlobID, 0, -1, &d))
 		corruptedData := d.Dup()
 		corruptedData.Append([]byte("bad bits"))
-		require.NoError(t, env.RepositoryWriter.BlobStorage().PutBlob(ctx, repo.BlobCfgBlobID, corruptedData.Bytes(), blob.PutOptions{}))
+		require.NoError(t, env.RepositoryWriter.BlobStorage().PutBlob(ctx, format.KopiaBlobCfgBlobID, corruptedData.Bytes(), blob.PutOptions{}))
 
 		// verify that we error out on corrupted blobcfg blob
 		_, err := repo.Open(ctx, env.ConfigFile(), env.Password, &repo.Options{})
-		require.EqualError(t, err, "invalid repository password")
+		require.ErrorContains(t, err, "invalid repository password")
 
 		// restore the original blob
-		require.NoError(t, env.RepositoryWriter.BlobStorage().PutBlob(ctx, repo.BlobCfgBlobID, d.Bytes(), blob.PutOptions{}))
+		require.NoError(t, env.RepositoryWriter.BlobStorage().PutBlob(ctx, format.KopiaBlobCfgBlobID, d.Bytes(), blob.PutOptions{}))
 	}
 
 	// verify that we'd hard-fail on unexpected errors on blobcfg blob-puts
@@ -438,11 +439,11 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 				env.RootStorage(),
 				// GetBlob callback
 				func(ctx context.Context, id blob.ID) error {
-					if id == repo.BlobCfgBlobID {
+					if id == format.KopiaBlobCfgBlobID {
 						return errors.New("unexpected error")
 					}
 					// simulate not-found for format-blob
-					if id == repo.FormatBlobID {
+					if id == format.KopiaRepositoryBlobID {
 						return blob.ErrBlobNotFound
 					}
 					return nil
@@ -463,10 +464,10 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 				func(ctx context.Context, id blob.ID) error {
 					// simulate not-found for format-blob but let blobcfg
 					// blob appear as pre-existing
-					if id == repo.BlobCfgBlobID {
+					if id == format.KopiaBlobCfgBlobID {
 						return nil
 					}
-					if id == repo.FormatBlobID {
+					if id == format.KopiaRepositoryBlobID {
 						return blob.ErrBlobNotFound
 					}
 					return nil
@@ -486,7 +487,7 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 				// GetBlob callback
 				func(ctx context.Context, id blob.ID) error {
 					// simulate not-found for format-blob and blobcfg blob
-					if id == repo.BlobCfgBlobID || id == repo.FormatBlobID {
+					if id == format.KopiaBlobCfgBlobID || id == format.KopiaRepositoryBlobID {
 						return blob.ErrBlobNotFound
 					}
 					return nil
@@ -494,7 +495,7 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 				nil, nil,
 				// PutBlob callback
 				func(ctx context.Context, id blob.ID, _ *blob.PutOptions) error {
-					if id == repo.BlobCfgBlobID {
+					if id == format.KopiaBlobCfgBlobID {
 						return errors.New("unexpected error")
 					}
 					return nil
@@ -517,7 +518,7 @@ func TestInitializeWithBlobCfgRetentionBlob(t *testing.T) {
 				// GetBlob callback
 				func(ctx context.Context, id blob.ID) error {
 					// simulate not-found for format-blob and blobcfg blob
-					if id == repo.FormatBlobID {
+					if id == format.KopiaRepositoryBlobID {
 						return errors.New("unexpected error")
 					}
 					return nil
@@ -537,7 +538,7 @@ func TestInitializeWithNoRetention(t *testing.T) {
 	// are not supplied.
 	var b gather.WriteBuffer
 	defer b.Close()
-	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, repo.BlobCfgBlobID, 0, -1, &b))
+	require.NoError(t, env.RepositoryWriter.BlobStorage().GetBlob(ctx, format.KopiaBlobCfgBlobID, 0, -1, &b))
 }
 
 func TestObjectWritesWithRetention(t *testing.T) {
@@ -565,8 +566,8 @@ func TestObjectWritesWithRetention(t *testing.T) {
 		prefixesWithRetention = append(prefixesWithRetention, string(prefix))
 	}
 
-	prefixesWithRetention = append(prefixesWithRetention, content.IndexBlobPrefix, epoch.EpochManagerIndexUberPrefix,
-		repo.FormatBlobID, repo.BlobCfgBlobID)
+	prefixesWithRetention = append(prefixesWithRetention, content.LegacyIndexBlobPrefix, epoch.EpochManagerIndexUberPrefix,
+		format.KopiaRepositoryBlobID, format.KopiaBlobCfgBlobID)
 
 	// make sure that we cannot set mtime on the kopia objects created due to the
 	// retention time constraint
@@ -635,14 +636,97 @@ func (s *formatSpecificTestSuite) TestWriteSessionFlushOnFailure(t *testing.T) {
 
 func (s *formatSpecificTestSuite) TestChangePassword(t *testing.T) {
 	ctx, env := repotesting.NewEnvironment(t, s.formatVersion)
-	if s.formatVersion == content.FormatVersion1 {
-		require.Error(t, env.RepositoryWriter.ChangePassword(ctx, "new-password"))
+	if s.formatVersion == format.FormatVersion1 {
+		require.Error(t, env.RepositoryWriter.FormatManager().ChangePassword(ctx, "new-password"))
 	} else {
-		require.NoError(t, env.RepositoryWriter.ChangePassword(ctx, "new-password"))
+		require.NoError(t, env.RepositoryWriter.FormatManager().ChangePassword(ctx, "new-password"))
 
 		r, err := repo.Open(ctx, env.RepositoryWriter.ConfigFilename(), "new-password", nil)
 		require.NoError(t, err)
 		r.Close(ctx)
+	}
+}
+
+func TestDeriveKey(t *testing.T) {
+	testPurpose := []byte{0, 0, 0, 0}
+	testKeyLength := 8
+	masterKey := []byte("01234567890123456789012345678901")
+	uniqueID := []byte("a5ba5d2da4b14b518b9501b64b5d87ca")
+
+	j := format.KopiaRepositoryJSON{
+		UniqueID:               uniqueID,
+		KeyDerivationAlgorithm: format.DefaultKeyDerivationAlgorithm,
+	}
+
+	formatEncryptionKeyFromPassword, err := j.DeriveFormatEncryptionKeyFromPassword(repotesting.DefaultPasswordForTesting)
+	require.NoError(t, err)
+
+	validV1KeyDerivedFromPassword := format.DeriveKeyFromMasterKey(formatEncryptionKeyFromPassword, uniqueID, testPurpose, testKeyLength)
+	validV2KeyDerivedFromMasterKey := format.DeriveKeyFromMasterKey(masterKey, uniqueID, testPurpose, testKeyLength)
+
+	setup := func(v format.Version) repo.DirectRepositoryWriter {
+		_, env := repotesting.NewEnvironment(t, v, repotesting.Options{
+			NewRepositoryOptions: func(nro *repo.NewRepositoryOptions) {
+				nro.BlockFormat.MasterKey = masterKey
+				nro.UniqueID = uniqueID
+			},
+		})
+
+		return env.RepositoryWriter
+	}
+
+	setupUpgraded := func(v1, v2 format.Version) repo.DirectRepositoryWriter {
+		ctx, env := repotesting.NewEnvironment(t, v1, repotesting.Options{
+			NewRepositoryOptions: func(nro *repo.NewRepositoryOptions) {
+				// do not set nro.BlockFormat.MasterKey
+				nro.UniqueID = uniqueID
+			},
+		})
+
+		// prepare upgrade
+		dw1Upgraded := env.Repository.(repo.DirectRepositoryWriter)
+		cf := dw1Upgraded.ContentReader().ContentFormat()
+
+		mp, mperr := cf.GetMutableParameters()
+		require.NoError(t, mperr)
+
+		feat, err := dw1Upgraded.FormatManager().RequiredFeatures()
+		require.NoError(t, err)
+
+		// perform upgrade
+		mp.Version = v2
+
+		blobCfg, err := dw1Upgraded.FormatManager().BlobCfgBlob()
+		require.NoError(t, err)
+
+		require.NoError(t, dw1Upgraded.FormatManager().SetParameters(ctx, mp, blobCfg, feat))
+
+		return env.MustConnectOpenAnother(t).(repo.DirectRepositoryWriter)
+	}
+
+	// we verify that repositories started on V1 will continue to derive keys from
+	// password (which can't be changed) and not from the master key.
+	cases := []struct {
+		desc       string
+		dw         repo.DirectRepositoryWriter
+		wantFormat format.Version
+		wantKey    []byte
+	}{
+		{"v1", setup(format.FormatVersion1), format.FormatVersion1, validV1KeyDerivedFromPassword},
+		{"v1-v2", setupUpgraded(format.FormatVersion1, format.FormatVersion2), format.FormatVersion2, validV1KeyDerivedFromPassword},
+		{"v1-v3", setupUpgraded(format.FormatVersion1, format.FormatVersion3), format.FormatVersion3, validV1KeyDerivedFromPassword},
+		{"v2", setup(format.FormatVersion2), format.FormatVersion2, validV2KeyDerivedFromMasterKey},
+		{"v3", setup(format.FormatVersion3), format.FormatVersion3, validV2KeyDerivedFromMasterKey},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			mp, err := tc.dw.FormatManager().GetMutableParameters()
+			require.NoError(t, err)
+
+			require.Equal(t, tc.wantFormat, mp.Version)
+			require.Equal(t, tc.wantKey, tc.dw.DeriveKey(testPurpose, testKeyLength))
+		})
 	}
 }
 

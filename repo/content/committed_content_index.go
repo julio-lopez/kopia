@@ -15,6 +15,7 @@ import (
 	"github.com/kopia/kopia/internal/gather"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/content/index"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/logging"
 )
 
@@ -29,7 +30,7 @@ type committedContentIndex struct {
 	rev   int64
 	cache committedContentIndexCache
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	// +checklocks:mu
 	deletionWatermark time.Time
 	// +checklocks:mu
@@ -37,8 +38,8 @@ type committedContentIndex struct {
 	// +checklocks:mu
 	merged index.Merged
 
-	v1PerContentOverhead uint32
-	indexVersion         int
+	v1PerContentOverhead func() int
+	formatProvider       format.Provider
 
 	// fetchOne loads one index blob
 	fetchOne func(ctx context.Context, blobID blob.ID, output *gather.WriteBuffer) error
@@ -58,8 +59,8 @@ func (c *committedContentIndex) revision() int64 {
 }
 
 func (c *committedContentIndex) getContent(contentID ID) (Info, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	info, err := c.merged.GetInfo(contentID)
 	if info != nil {
@@ -123,12 +124,12 @@ func (c *committedContentIndex) addIndexBlob(ctx context.Context, indexBlobID bl
 }
 
 func (c *committedContentIndex) listContents(r IDRange, cb func(i Info) error) error {
-	c.mu.Lock()
+	c.mu.RLock()
 	m := append(index.Merged(nil), c.merged...)
 	deletionWatermark := c.deletionWatermark
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return m.Iterate(r, func(i Info) error {
 		if shouldIgnore(i, deletionWatermark) {
 			return nil
@@ -168,7 +169,7 @@ func (c *committedContentIndex) merge(ctx context.Context, indexFiles []blob.ID)
 
 			ndx, err = c.cache.openIndex(ctx, e)
 			if err != nil {
-				newlyOpened.Close() // nolint:errcheck
+				newlyOpened.Close() //nolint:errcheck
 
 				return nil, nil, errors.Wrapf(err, "unable to open pack index %q", e)
 			}
@@ -182,7 +183,7 @@ func (c *committedContentIndex) merge(ctx context.Context, indexFiles []blob.ID)
 
 	mergedAndCombined, err := c.combineSmallIndexes(newMerged)
 	if err != nil {
-		newlyOpened.Close() // nolint:errcheck
+		newlyOpened.Close() //nolint:errcheck
 
 		return nil, nil, errors.Wrap(err, "unable to combine small indexes")
 	}
@@ -259,9 +260,14 @@ func (c *committedContentIndex) combineSmallIndexes(m index.Merged) (index.Merge
 		}
 	}
 
+	mp, mperr := c.formatProvider.GetMutableParameters()
+	if mperr != nil {
+		return nil, errors.Wrap(mperr, "error getting mutable parameters")
+	}
+
 	var buf bytes.Buffer
 
-	if err := b.Build(&buf, c.indexVersion); err != nil {
+	if err := b.Build(&buf, mp.IndexVersion); err != nil {
 		return nil, errors.Wrap(err, "error building combined in-memory index")
 	}
 
@@ -348,8 +354,8 @@ func (c *committedContentIndex) missingIndexBlobs(ctx context.Context, blobs []b
 }
 
 func newCommittedContentIndex(caching *CachingOptions,
-	v1PerContentOverhead uint32,
-	indexVersion int,
+	v1PerContentOverhead func() int,
+	formatProvider format.Provider,
 	fetchOne func(ctx context.Context, blobID blob.ID, output *gather.WriteBuffer) error,
 	log logging.Logger,
 	minSweepAge time.Duration,
@@ -370,7 +376,7 @@ func newCommittedContentIndex(caching *CachingOptions,
 		cache:                cache,
 		inUse:                map[blob.ID]index.Index{},
 		v1PerContentOverhead: v1PerContentOverhead,
-		indexVersion:         indexVersion,
+		formatProvider:       formatProvider,
 		fetchOne:             fetchOne,
 		log:                  log,
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -19,9 +18,9 @@ type Manifest struct {
 	ID     manifest.ID `json:"id"`
 	Source SourceInfo  `json:"source"`
 
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"startTime"`
-	EndTime     time.Time `json:"endTime"`
+	Description string          `json:"description"`
+	StartTime   fs.UTCTimestamp `json:"startTime"`
+	EndTime     fs.UTCTimestamp `json:"endTime"`
 
 	Stats            Stats  `json:"stats,omitempty"`
 	IncompleteReason string `json:"incomplete,omitempty"`
@@ -93,10 +92,10 @@ func (p Permissions) MarshalJSON() ([]byte, error) {
 		return nil, nil
 	}
 
-	// nolint:gomnd
+	//nolint:gomnd
 	s := "0" + strconv.FormatInt(int64(p), 8)
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return json.Marshal(&s)
 }
 
@@ -108,7 +107,7 @@ func (p *Permissions) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "unable to unmarshal JSON")
 	}
 
-	// nolint:gomnd
+	//nolint:gomnd
 	v, err := strconv.ParseInt(s, 0, 32)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse permission string")
@@ -125,7 +124,7 @@ type DirEntry struct {
 	Type        EntryType            `json:"type,omitempty"`
 	Permissions Permissions          `json:"mode,omitempty"`
 	FileSize    int64                `json:"size,omitempty"`
-	ModTime     time.Time            `json:"mtime,omitempty"`
+	ModTime     fs.UTCTimestamp      `json:"mtime,omitempty"`
 	UserID      uint32               `json:"uid,omitempty"`
 	GroupID     uint32               `json:"gid,omitempty"`
 	ObjectID    object.ID            `json:"obj,omitempty"`
@@ -243,7 +242,7 @@ func GroupBySource(manifests []*Manifest) [][]*Manifest {
 func SortByTime(manifests []*Manifest, reverse bool) []*Manifest {
 	result := append([]*Manifest(nil), manifests...)
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].StartTime.After(result[j].StartTime) == reverse
+		return result[i].StartTime > result[j].StartTime == reverse
 	})
 
 	return result

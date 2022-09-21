@@ -160,7 +160,7 @@ func (w *objectWriter) flushBuffer() error {
 	w.asyncWritesWG.Add(1)
 
 	asyncBuf := gather.NewWriteBuffer()
-	w.buffer.Bytes().WriteTo(asyncBuf) // nolint:errcheck
+	w.buffer.Bytes().WriteTo(asyncBuf) //nolint:errcheck
 
 	go func() {
 		defer func() {
@@ -188,8 +188,13 @@ func (w *objectWriter) prepareAndWriteContentChunk(chunkID int, data gather.Byte
 	comp := content.NoCompression
 	objectComp := w.compressor
 
+	scc, err := w.om.contentMgr.SupportsContentCompression()
+	if err != nil {
+		return errors.Wrap(err, "supports content compression")
+	}
+
 	// do not compress in this layer, instead pass comp to the content manager.
-	if w.om.contentMgr.SupportsContentCompression() && w.compressor != nil {
+	if scc && w.compressor != nil {
 		comp = w.compressor.HeaderID()
 		objectComp = nil
 	}

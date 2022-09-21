@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -85,7 +84,7 @@ func GetAllEntries(ctx context.Context, d Directory) ([]Entry, error) {
 		return nil
 	})
 
-	return entries, err // nolint:wrapcheck
+	return entries, err //nolint:wrapcheck
 }
 
 // ErrEntryNotFound is returned when an entry is not found.
@@ -131,12 +130,12 @@ type EntryWithError struct {
 
 // DirectorySummary represents summary information about a directory.
 type DirectorySummary struct {
-	TotalFileSize     int64     `json:"size"`
-	TotalFileCount    int64     `json:"files"`
-	TotalSymlinkCount int64     `json:"symlinks"`
-	TotalDirCount     int64     `json:"dirs"`
-	MaxModTime        time.Time `json:"maxTime"`
-	IncompleteReason  string    `json:"incomplete,omitempty"`
+	TotalFileSize     int64        `json:"size"`
+	TotalFileCount    int64        `json:"files"`
+	TotalSymlinkCount int64        `json:"symlinks"`
+	TotalDirCount     int64        `json:"dirs"`
+	MaxModTime        UTCTimestamp `json:"maxTime"`
+	IncompleteReason  string       `json:"incomplete,omitempty"`
 
 	// number of failed files
 	FatalErrorCount   int `json:"numFailed"`

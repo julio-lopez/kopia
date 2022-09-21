@@ -22,7 +22,7 @@ func (bm *WriteManager) RecoverIndexFromPackBlob(ctx context.Context, packFile b
 		return nil, err
 	}
 
-	ndx, err := index.Open(localIndexBytes.Bytes().ToByteSlice(), nil, uint32(bm.crypter.Encryptor.Overhead()))
+	ndx, err := index.Open(localIndexBytes.Bytes().ToByteSlice(), nil, bm.format.Encryptor().Overhead)
 	if err != nil {
 		return nil, errors.Errorf("unable to open index in file %v", packFile)
 	}
@@ -74,7 +74,7 @@ func (p *packContentPostamble) toBytes() ([]byte, error) {
 	binary.BigEndian.PutUint32(buf[n:], checksum)
 	n += 4
 
-	if n > 255 { // nolint:gomnd
+	if n > 255 { //nolint:gomnd
 		return nil, errors.Errorf("postamble too long: %v", n)
 	}
 
@@ -94,7 +94,7 @@ func findPostamble(b []byte) *packContentPostamble {
 
 	// length of postamble is the last byte
 	postambleLength := int(b[len(b)-1])
-	if postambleLength < 5 { // nolint:gomnd
+	if postambleLength < 5 { //nolint:gomnd
 		// too short, must be at least 5 bytes (checksum + own length)
 		return nil
 	}
@@ -171,7 +171,12 @@ func decodePostamble(payload []byte) *packContentPostamble {
 }
 
 func (sm *SharedManager) buildLocalIndex(pending index.Builder, output *gather.WriteBuffer) error {
-	if err := pending.Build(output, sm.indexVersion); err != nil {
+	mp, mperr := sm.format.GetMutableParameters()
+	if mperr != nil {
+		return errors.Wrap(mperr, "mutable parameters")
+	}
+
+	if err := pending.Build(output, mp.IndexVersion); err != nil {
 		return errors.Wrap(err, "unable to build local index")
 	}
 
@@ -195,7 +200,7 @@ func (sm *SharedManager) appendPackFileIndexRecoveryData(pending index.Builder, 
 	var encryptedLocalIndex gather.WriteBuffer
 	defer encryptedLocalIndex.Close()
 
-	if err := sm.crypter.Encryptor.Encrypt(localIndex.Bytes(), localIndexIV, &encryptedLocalIndex); err != nil {
+	if err := sm.format.Encryptor().Encrypt(localIndex.Bytes(), localIndexIV, &encryptedLocalIndex); err != nil {
 		return errors.Wrap(err, "encryption error")
 	}
 

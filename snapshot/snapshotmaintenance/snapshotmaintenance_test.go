@@ -17,6 +17,7 @@ import (
 	"github.com/kopia/kopia/internal/testlogging"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/maintenance"
 	"github.com/kopia/kopia/repo/object"
 	"github.com/kopia/kopia/snapshot"
@@ -81,13 +82,13 @@ func (s *formatSpecificTestSuite) TestSnapshotGCSimple(t *testing.T) {
 
 // Test maintenance when a directory is deleted and then reused.
 // Scenario / events:
-// - create snapshot s1 on a directory d is created
-// - delete s1
-// - let enough time pass so the contents in s1 are eligible for GC mark/deletion
-// - concurrently create a snapshot s2 on directory d while performing full
-//   maintenance
-// - Check full maintenance can be run afterwards
-// - Verify contents.
+//   - create snapshot s1 on a directory d is created
+//   - delete s1
+//   - let enough time pass so the contents in s1 are eligible for GC mark/deletion
+//   - concurrently create a snapshot s2 on directory d while performing full
+//     maintenance
+//   - Check full maintenance can be run afterwards
+//   - Verify contents.
 func (s *formatSpecificTestSuite) TestMaintenanceReuseDirManifest(t *testing.T) {
 	ctx := testlogging.Context(t)
 	th := newTestHarness(t, s.formatVersion)
@@ -207,7 +208,7 @@ func (s *formatSpecificTestSuite) TestSnapshotGCMinContentAgeSafety(t *testing.T
 
 	// Advance time so the first content created above is close fall of the
 	// SafetyFull.MinContentAgeSubjectToGC window. Leave a small buffer
-	// of 10 seconds below for "passage of time" between now an when snapshot
+	// of 20 seconds below for "passage of time" between now an when snapshot
 	// GC actually starts.
 	// Note: The duration of this buffer is a "magical number" that depends on
 	// the number of times time is advanced between "now" and when snapshot
@@ -216,7 +217,7 @@ func (s *formatSpecificTestSuite) TestSnapshotGCMinContentAgeSafety(t *testing.T
 	require.NoError(t, err)
 	require.NotEmpty(t, ci)
 
-	timeAdvance := safety.MinContentAgeSubjectToGC - th.fakeTime.NowFunc()().Sub(ci.Timestamp()) - 10*time.Second
+	timeAdvance := safety.MinContentAgeSubjectToGC - th.fakeTime.NowFunc()().Sub(ci.Timestamp()) - 20*time.Second
 
 	require.Positive(t, timeAdvance)
 	th.fakeTime.Advance(timeAdvance)
@@ -230,7 +231,7 @@ func (s *formatSpecificTestSuite) TestSnapshotGCMinContentAgeSafety(t *testing.T
 	checkContentDeletion(t, th.Repository, cids, false)
 }
 
-func newTestHarness(t *testing.T, formatVersion content.FormatVersion) *testHarness {
+func newTestHarness(t *testing.T, formatVersion format.Version) *testHarness {
 	t.Helper()
 
 	baseTime := time.Date(2020, 9, 10, 0, 0, 0, 0, time.UTC)
@@ -254,7 +255,7 @@ func (s *formatSpecificTestSuite) TestMaintenanceAutoLiveness(t *testing.T) {
 			o.TimeNowFunc = ft.NowFunc()
 		},
 		NewRepositoryOptions: func(nro *repo.NewRepositoryOptions) {
-			nro.BlockFormat.Version = content.FormatVersion1
+			nro.BlockFormat.Version = format.FormatVersion1
 		},
 	})
 

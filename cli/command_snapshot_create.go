@@ -82,7 +82,7 @@ func (c *commandSnapshotCreate) setup(svc appServices, parent commandParent) {
 	cmd.Action(svc.repositoryWriterAction(c.run))
 }
 
-// nolint:gocyclo
+//nolint:gocyclo
 func (c *commandSnapshotCreate) run(ctx context.Context, rep repo.RepositoryWriter) error {
 	sources := c.snapshotCreateSources
 
@@ -249,7 +249,7 @@ func parseTimestamp(timestamp string) (time.Time, error) {
 		return time.Time{}, nil
 	}
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return time.Parse(timeFormat, timestamp)
 }
 
@@ -259,7 +259,7 @@ func startTimeAfterEndTime(startTime, endTime time.Time) bool {
 		startTime.After(endTime)
 }
 
-// nolint:gocyclo
+//nolint:gocyclo
 func (c *commandSnapshotCreate) snapshotSingleSource(ctx context.Context, rep repo.RepositoryWriter, u *snapshotfs.Uploader, sourceInfo snapshot.SourceInfo, tags map[string]string) error {
 	log(ctx).Infof("Snapshotting %v ...", sourceInfo)
 
@@ -311,19 +311,19 @@ func (c *commandSnapshotCreate) snapshotSingleSource(ctx context.Context, rep re
 		if endTimeOverride.IsZero() {
 			// Calculate the correct end time based on current duration if they're not specified
 			duration := manifest.EndTime.Sub(manifest.StartTime)
-			manifest.EndTime = startTimeOverride.Add(duration)
+			manifest.EndTime = fs.UTCTimestampFromTime(startTimeOverride).Add(duration)
 		}
 
-		manifest.StartTime = startTimeOverride
+		manifest.StartTime = fs.UTCTimestampFromTime(startTimeOverride)
 	}
 
 	if !endTimeOverride.IsZero() {
 		if startTimeOverride.IsZero() {
 			inverseDuration := manifest.StartTime.Sub(manifest.EndTime)
-			manifest.StartTime = endTimeOverride.Add(inverseDuration)
+			manifest.StartTime = fs.UTCTimestampFromTime(endTimeOverride).Add(inverseDuration)
 		}
 
-		manifest.EndTime = endTimeOverride
+		manifest.EndTime = fs.UTCTimestampFromTime(endTimeOverride)
 	}
 
 	ignoreIdenticalSnapshot := policyTree.EffectivePolicy().RetentionPolicy.IgnoreIdenticalSnapshots.OrDefault(false)
@@ -391,7 +391,7 @@ func (c *commandSnapshotCreate) reportSnapshotStatus(ctx context.Context, manife
 
 // findPreviousSnapshotManifest returns the list of previous snapshots for a given source, including
 // last complete snapshot and possibly some number of incomplete snapshots following it.
-func findPreviousSnapshotManifest(ctx context.Context, rep repo.Repository, sourceInfo snapshot.SourceInfo, noLaterThan *time.Time) ([]*snapshot.Manifest, error) {
+func findPreviousSnapshotManifest(ctx context.Context, rep repo.Repository, sourceInfo snapshot.SourceInfo, noLaterThan *fs.UTCTimestamp) ([]*snapshot.Manifest, error) {
 	man, err := snapshot.ListSnapshots(ctx, rep, sourceInfo)
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing previous snapshots")
@@ -400,7 +400,7 @@ func findPreviousSnapshotManifest(ctx context.Context, rep repo.Repository, sour
 	// phase 1 - find latest complete snapshot.
 	var previousComplete *snapshot.Manifest
 
-	var previousCompleteStartTime time.Time
+	var previousCompleteStartTime fs.UTCTimestamp
 
 	var result []*snapshot.Manifest
 

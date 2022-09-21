@@ -12,11 +12,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/scrypt"
 
-	"github.com/kopia/kopia/internal/atomicfile"
 	"github.com/kopia/kopia/internal/cache"
-	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/epoch"
-	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/feature"
 	"github.com/kopia/kopia/internal/retry"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/beforeop"
@@ -24,21 +22,28 @@ import (
 	"github.com/kopia/kopia/repo/blob/readonly"
 	"github.com/kopia/kopia/repo/blob/throttling"
 	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/logging"
 	"github.com/kopia/kopia/repo/manifest"
 	"github.com/kopia/kopia/repo/object"
 )
 
-// CacheDirMarkerFile is the name of the marker file indicating a directory contains Kopia caches.
-// See https://bford.info/cachedir/
-const CacheDirMarkerFile = "CACHEDIR.TAG"
-
-// CacheDirMarkerHeader is the header signature for cache dir marker files.
-const CacheDirMarkerHeader = "Signature: 8a477f597d28d172789f06886806bc55"
-
-// DefaultRepositoryBlobCacheDuration is the duration for which we treat cached kopia.repository
-// as valid.
-const DefaultRepositoryBlobCacheDuration = 15 * time.Minute
+// The list below keeps track of features this version of Kopia supports for forwards compatibility.
+//
+// Repository can specify which features are required to open it and clients will refuse to open the
+// repository if they don't have all required features.
+//
+// In the future we'll be removing features from the list to deprecate them and this will ensure newer
+// versions of kopia won't be able to work with old, unmigrated repositories.
+//
+// The strings are arbitrary, but should be short, human-readable and immutable once a version
+// that starts requiring them is released.
+//
+//nolint:gochecknoglobals
+var supportedFeatures = []feature.Feature{
+	"index-v1",
+	"index-v2",
+}
 
 // throttlingWindow is the duration window during which the throttling token bucket fully replenishes.
 // the maximum number of tokens in the bucket is multiplied by the number of seconds.
@@ -50,19 +55,8 @@ const throttleBucketInitialFill = 0.1
 // localCacheIntegrityHMACSecretLength length of HMAC secret protecting local cache items.
 const localCacheIntegrityHMACSecretLength = 16
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var localCacheIntegrityPurpose = []byte("local-cache-integrity")
-
-const cacheDirMarkerContents = CacheDirMarkerHeader + `
-#
-# This file is a cache directory tag created by Kopia - Fast And Secure Open-Source Backup.
-#
-# For information about Kopia, see:
-#   https://kopia.io
-#
-# For information about cache directory tags, see:
-#   http://www.brynosaurus.com/cachedir/
-`
 
 var log = logging.Module("kopia/repo")
 
@@ -73,10 +67,18 @@ type Options struct {
 	DisableInternalLog  bool             // Disable internal log
 	UpgradeOwnerID      string           // Owner-ID of any upgrade in progress, when this is not set the access may be restricted
 	DoNotWaitForUpgrade bool             // Disable the exponential forever backoff on an upgrade lock.
+
+	OnFatalError func(err error) // function to invoke when repository encounters a fatal error, usually invokes os.Exit
+
+	// test-only flags
+	TestOnlyIgnoreMissingRequiredFeatures bool // ignore missing features
 }
 
 // ErrInvalidPassword is returned when repository password is invalid.
-var ErrInvalidPassword = errors.Errorf("invalid repository password")
+var ErrInvalidPassword = format.ErrInvalidPassword
+
+// ErrAlreadyInitialized is returned when repository is already initialized in the provided storage.
+var ErrAlreadyInitialized = format.ErrAlreadyInitialized
 
 // ErrRepositoryUnavailableDueToUpgrageInProgress is returned when repository
 // is undergoing upgrade that requires exclusive access.
@@ -95,6 +97,13 @@ func Open(ctx context.Context, configFile, password string, options *Options) (r
 
 	if options == nil {
 		options = &Options{}
+	}
+
+	if options.OnFatalError == nil {
+		options.OnFatalError = func(err error) {
+			log(ctx).Errorf("FATAL: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	configFile, err = filepath.Abs(configFile)
@@ -126,7 +135,7 @@ func getContentCacheOrNil(ctx context.Context, opt *content.CachingOptions, pass
 	// derive content cache key from the password & HMAC secret using scrypt.
 	salt := append([]byte("content-cache-protection"), opt.HMACSecret...)
 
-	// nolint:gomnd
+	//nolint:gomnd
 	cacheEncryptionKey, err := scrypt.Key([]byte(password), salt, 65536, 8, 1, 32)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to derive cache encryption key from password")
@@ -190,58 +199,9 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 	return r, nil
 }
 
-type unpackedFormatBlob struct {
-	f                   *formatBlob
-	fb                  []byte                  // serialized format blob
-	cacheMTime          time.Time               // mod time of the format blob cache file
-	repoConfig          *repositoryObjectFormat // unencrypted format blob structure
-	formatEncryptionKey []byte                  // key derived from the password
-}
-
-func readAndCacheRepoConfig(ctx context.Context, st blob.Storage, password string, cacheOpts *content.CachingOptions, validDuration time.Duration) (ufb *unpackedFormatBlob, err error) {
-	ufb = &unpackedFormatBlob{}
-
-	// Read format blob, potentially from cache.
-	ufb.fb, ufb.cacheMTime, err = readAndCacheRepositoryBlobBytes(ctx, st, cacheOpts.CacheDirectory, FormatBlobID, validDuration)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to read format blob")
-	}
-
-	if err = writeCacheMarker(cacheOpts.CacheDirectory); err != nil {
-		return nil, errors.Wrap(err, "unable to write cache directory marker")
-	}
-
-	ufb.f, err = parseFormatBlob(ufb.fb)
-	if err != nil {
-		return nil, errors.Wrap(err, "can't parse format blob")
-	}
-
-	ufb.fb, err = addFormatBlobChecksumAndLength(ufb.fb)
-	if err != nil {
-		return nil, errors.Errorf("unable to add checksum")
-	}
-
-	ufb.formatEncryptionKey, err = ufb.f.deriveFormatEncryptionKeyFromPassword(password)
-	if err != nil {
-		return nil, err
-	}
-
-	ufb.repoConfig, err = ufb.f.decryptFormatBytes(ufb.formatEncryptionKey)
-	if err != nil {
-		return nil, ErrInvalidPassword
-	}
-
-	return ufb, nil
-}
-
-// ReadAndCacheRepoUpgradeLock loads the lock config from cache and returns it.
-func ReadAndCacheRepoUpgradeLock(ctx context.Context, st blob.Storage, password string, cacheOpts *content.CachingOptions, validDuration time.Duration) (*UpgradeLockIntent, error) {
-	ufb, err := readAndCacheRepoConfig(ctx, st, password, cacheOpts, validDuration)
-	return ufb.repoConfig.UpgradeLock, err
-}
-
 // openWithConfig opens the repository with a given configuration, avoiding the need for a config file.
-// nolint:funlen,gocyclo
+//
+//nolint:funlen,gocyclo
 func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, password string, options *Options, cacheOpts *content.CachingOptions, configFile string) (DirectRepository, error) {
 	cacheOpts = cacheOpts.CloneOrDefault()
 	cmOpts := &content.ManagerOptions{
@@ -249,18 +209,20 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 		DisableInternalLog: options.DisableInternalLog,
 	}
 
-	var ufb *unpackedFormatBlob
+	fmgr, ferr := format.NewManager(ctx, st, cacheOpts.CacheDirectory, lc.FormatBlobCacheDuration, password, cmOpts.TimeNow)
+	if ferr != nil {
+		return nil, errors.Wrap(ferr, "unable to create format manager")
+	}
 
-	if _, err := retry.WithExponentialBackoffMaxRetries(ctx, -1, "read repo config and wait for upgrade", func() (interface{}, error) {
-		var internalErr error
-		ufb, internalErr = readAndCacheRepoConfig(ctx, st, password, cacheOpts,
-			lc.FormatBlobCacheDuration)
-		if internalErr != nil {
-			return nil, internalErr
+	if _, err := retry.WithExponentialBackoffMaxRetries(ctx, -1, "wait for upgrade", func() (interface{}, error) {
+		uli, err := fmgr.UpgradeLockIntent()
+		if err != nil {
+			//nolint:wrapcheck
+			return nil, err
 		}
 
 		// retry if upgrade lock has been taken
-		if locked, _ := ufb.repoConfig.UpgradeLock.IsLocked(cmOpts.TimeNow()); locked && options.UpgradeOwnerID != ufb.repoConfig.UpgradeLock.OwnerID {
+		if locked, _ := uli.IsLocked(cmOpts.TimeNow()); locked && options.UpgradeOwnerID != uli.OwnerID {
 			return nil, ErrRepositoryUnavailableDueToUpgrageInProgress
 		}
 
@@ -268,40 +230,19 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 	}, func(internalErr error) bool {
 		return !options.DoNotWaitForUpgrade && errors.Is(internalErr, ErrRepositoryUnavailableDueToUpgrageInProgress)
 	}); err != nil {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return nil, err
 	}
 
-	cmOpts.RepositoryFormatBytes = ufb.fb
-
-	// Read blobcfg blob, potentially from cache.
-	bb, _, err := readAndCacheRepositoryBlobBytes(ctx, st, cacheOpts.CacheDirectory, BlobCfgBlobID, lc.FormatBlobCacheDuration)
-	if err != nil && !errors.Is(err, blob.ErrBlobNotFound) {
-		return nil, errors.Wrap(err, "unable to read blobcfg blob")
+	if err := handleMissingRequiredFeatures(ctx, fmgr, options.TestOnlyIgnoreMissingRequiredFeatures); err != nil {
+		return nil, err
 	}
 
-	blobcfg, err := deserializeBlobCfgBytes(ufb.f, bb, ufb.formatEncryptionKey)
-	if err != nil {
-		return nil, ErrInvalidPassword
-	}
-
-	if ufb.repoConfig.FormattingOptions.EnablePasswordChange {
-		cacheOpts.HMACSecret = deriveKeyFromMasterKey(ufb.repoConfig.HMACSecret, ufb.f.UniqueID, localCacheIntegrityPurpose, localCacheIntegrityHMACSecretLength)
+	if fmgr.SupportsPasswordChange() {
+		cacheOpts.HMACSecret = format.DeriveKeyFromMasterKey(fmgr.GetHmacSecret(), fmgr.UniqueID(), localCacheIntegrityPurpose, localCacheIntegrityHMACSecretLength)
 	} else {
-		// deriving from ufb.formatEncryptionKey was actually a bug, that only matters will change when we change the password
-		cacheOpts.HMACSecret = deriveKeyFromMasterKey(ufb.formatEncryptionKey, ufb.f.UniqueID, localCacheIntegrityPurpose, localCacheIntegrityHMACSecretLength)
-	}
-
-	fo := &ufb.repoConfig.FormattingOptions
-
-	if fo.MaxPackSize == 0 {
-		// legacy only, apply default
-		fo.MaxPackSize = 20 << 20 // nolint:gomnd
-	}
-
-	// do not embed repository format info in pack blobs when password change is enabled.
-	if fo.EnablePasswordChange {
-		cmOpts.RepositoryFormatBytes = nil
+		// deriving from ufb.FormatEncryptionKey was actually a bug, that only matters will change when we change the password
+		cacheOpts.HMACSecret = format.DeriveKeyFromMasterKey(fmgr.FormatEncryptionKey(), fmgr.UniqueID(), localCacheIntegrityPurpose, localCacheIntegrityHMACSecretLength)
 	}
 
 	limits := throttlingLimitsFromConnectionInfo(ctx, st.ConnectionInfo())
@@ -309,9 +250,9 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 		limits = *lc.Throttling
 	}
 
-	st, throttler, err := addThrottler(st, limits)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to add throttler")
+	st, throttler, ferr := addThrottler(st, limits)
+	if ferr != nil {
+		return nil, errors.Wrap(ferr, "unable to add throttler")
 	}
 
 	throttler.OnUpdate(func(l throttling.Limits) error {
@@ -325,17 +266,21 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 		return lc2.writeToFile(configFile)
 	})
 
+	blobcfg, err := fmgr.BlobCfgBlob()
+	if err != nil {
+		return nil, errors.Wrap(err, "blob configuration")
+	}
+
 	if blobcfg.IsRetentionEnabled() {
 		st = wrapLockingStorage(st, blobcfg)
 	}
 
 	// background/interleaving upgrade lock storage monitor
-	st = upgradeLockMonitor(options.UpgradeOwnerID, st, password, cacheOpts, lc.FormatBlobCacheDuration,
-		ufb.cacheMTime, cmOpts.TimeNow)
+	st = upgradeLockMonitor(fmgr, options.UpgradeOwnerID, st, cmOpts.TimeNow, options.OnFatalError, options.TestOnlyIgnoreMissingRequiredFeatures)
 
-	scm, err := content.NewSharedManager(ctx, st, fo, cacheOpts, cmOpts)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create shared content manager")
+	scm, ferr := content.NewSharedManager(ctx, st, fmgr, cacheOpts, cmOpts)
+	if ferr != nil {
+		return nil, errors.Wrap(ferr, "unable to create shared content manager")
 	}
 
 	cm := content.NewWriteManager(ctx, scm, content.SessionOptions{
@@ -343,14 +288,14 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 		SessionHost: lc.Hostname,
 	}, "")
 
-	om, err := object.NewObjectManager(ctx, cm, ufb.repoConfig.Format)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to open object manager")
+	om, ferr := object.NewObjectManager(ctx, cm, fmgr.ObjectFormat())
+	if ferr != nil {
+		return nil, errors.Wrap(ferr, "unable to open object manager")
 	}
 
-	manifests, err := manifest.NewManager(ctx, cm, manifest.ManagerOptions{TimeNow: cmOpts.TimeNow})
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to open manifests")
+	manifests, ferr := manifest.NewManager(ctx, cm, manifest.ManagerOptions{TimeNow: cmOpts.TimeNow})
+	if ferr != nil {
+		return nil, errors.Wrap(ferr, "unable to open manifests")
 	}
 
 	dr := &directRepository{
@@ -360,16 +305,13 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 		mmgr:  manifests,
 		sm:    scm,
 		directRepositoryParameters: directRepositoryParameters{
-			uniqueID:            ufb.f.UniqueID,
-			cachingOptions:      *cacheOpts,
-			formatBlob:          ufb.f,
-			blobCfgBlob:         blobcfg,
-			formatEncryptionKey: ufb.formatEncryptionKey,
-			timeNow:             cmOpts.TimeNow,
-			cliOpts:             lc.ClientOptions.ApplyDefaults(ctx, "Repository in "+st.DisplayName()),
-			configFile:          configFile,
-			nextWriterID:        new(int32),
-			throttler:           throttler,
+			cachingOptions: *cacheOpts,
+			fmgr:           fmgr,
+			timeNow:        cmOpts.TimeNow,
+			cliOpts:        lc.ClientOptions.ApplyDefaults(ctx, "Repository in "+st.DisplayName()),
+			configFile:     configFile,
+			nextWriterID:   new(int32),
+			throttler:      throttler,
 		},
 		closed: make(chan struct{}),
 	}
@@ -377,15 +319,37 @@ func openWithConfig(ctx context.Context, st blob.Storage, lc *LocalConfig, passw
 	return dr, nil
 }
 
-func wrapLockingStorage(st blob.Storage, r content.BlobCfgBlob) blob.Storage {
+func handleMissingRequiredFeatures(ctx context.Context, fmgr *format.Manager, ignoreErrors bool) error {
+	required, err := fmgr.RequiredFeatures()
+	if err != nil {
+		return errors.Wrap(err, "required features")
+	}
+
+	// See if the current version of Kopia supports all features required by the repository format.
+	// so we can safely fail to start in case repository has been upgraded to a new, incompatible version.
+	if missingFeatures := feature.GetUnsupportedFeatures(required, supportedFeatures); len(missingFeatures) > 0 {
+		for _, mf := range missingFeatures {
+			if ignoreErrors || mf.IfNotUnderstood.Warn {
+				log(ctx).Warnf("%s", mf.UnsupportedMessage())
+			} else {
+				// by default, fail hard
+				return errors.Errorf("%s", mf.UnsupportedMessage())
+			}
+		}
+	}
+
+	return nil
+}
+
+func wrapLockingStorage(st blob.Storage, r format.BlobStorageConfiguration) blob.Storage {
 	// collect prefixes that need to be locked on put
 	var prefixes []string
 	for _, prefix := range content.PackBlobIDPrefixes {
 		prefixes = append(prefixes, string(prefix))
 	}
 
-	prefixes = append(prefixes, content.IndexBlobPrefix, epoch.EpochManagerIndexUberPrefix, FormatBlobID,
-		BlobCfgBlobID)
+	prefixes = append(prefixes, content.LegacyIndexBlobPrefix, epoch.EpochManagerIndexUberPrefix, format.KopiaRepositoryBlobID,
+		format.KopiaBlobCfgBlobID)
 
 	return beforeop.NewWrapper(st, nil, nil, nil, func(ctx context.Context, id blob.ID, opts *blob.PutOptions) error {
 		for _, prefix := range prefixes {
@@ -409,24 +373,22 @@ func addThrottler(st blob.Storage, limits throttling.Limits) (blob.Storage, thro
 }
 
 func upgradeLockMonitor(
+	fmgr *format.Manager,
 	upgradeOwnerID string,
 	st blob.Storage,
-	password string,
-	cacheOpts *content.CachingOptions,
-	lockRefreshInterval time.Duration,
-	lastSync time.Time,
 	now func() time.Time,
+	onFatalError func(err error),
+	ignoreMissingRequiredFeatures bool,
 ) blob.Storage {
 	var (
-		m        sync.RWMutex
-		nextSync = lastSync.Add(lockRefreshInterval)
+		m             sync.RWMutex
+		lastCheckTime time.Time
 	)
 
 	cb := func(ctx context.Context) error {
-		// protected read for nextSync because it will be shared between
-		// parallel storage operations
 		m.RLock()
-		if nextSync.After(now()) {
+		// see if we already checked that revision
+		if lastCheckTime.Equal(fmgr.LoadedTime()) {
 			m.RUnlock()
 			return nil
 		}
@@ -436,25 +398,30 @@ func upgradeLockMonitor(
 		m.Lock()
 		defer m.Unlock()
 
-		if nextSync.After(now()) {
+		ltime := fmgr.LoadedTime()
+
+		if lastCheckTime.Equal(ltime) {
 			return nil
 		}
 
-		ufb, err := readAndCacheRepoConfig(ctx, st, password, cacheOpts, lockRefreshInterval)
+		uli, err := fmgr.UpgradeLockIntent()
 		if err != nil {
+			return errors.Wrap(err, "upgrade lock intent")
+		}
+
+		if err := handleMissingRequiredFeatures(ctx, fmgr, ignoreMissingRequiredFeatures); err != nil {
+			onFatalError(err)
 			return err
 		}
 
-		// only allow the upgrade owner to perform storage operations
-		if locked, _ := ufb.repoConfig.UpgradeLock.IsLocked(now()); locked && upgradeOwnerID != ufb.repoConfig.UpgradeLock.OwnerID {
-			return ErrRepositoryUnavailableDueToUpgrageInProgress
+		if uli != nil {
+			// only allow the upgrade owner to perform storage operations
+			if locked, _ := uli.IsLocked(now()); locked && upgradeOwnerID != uli.OwnerID {
+				return ErrRepositoryUnavailableDueToUpgrageInProgress
+			}
 		}
 
-		// prevent backward jumps on nextSync
-		newNextSync := ufb.cacheMTime.Add(lockRefreshInterval)
-		if newNextSync.After(nextSync) {
-			nextSync = newNextSync
-		}
+		lastCheckTime = ltime
 
 		return nil
 	}
@@ -477,110 +444,4 @@ func throttlingLimitsFromConnectionInfo(ctx context.Context, ci blob.ConnectionI
 	log(ctx).Debugw("throttling limits from connection info", "limits", l)
 
 	return l
-}
-
-func writeCacheMarker(cacheDir string) error {
-	if cacheDir == "" {
-		return nil
-	}
-
-	markerFile := filepath.Join(cacheDir, CacheDirMarkerFile)
-
-	st, err := os.Stat(markerFile)
-	if err == nil && st.Size() >= int64(len(cacheDirMarkerContents)) {
-		// ok
-		return nil
-	}
-
-	if err != nil && !os.IsNotExist(err) {
-		return errors.Wrap(err, "unexpected cache marker error")
-	}
-
-	f, err := os.Create(markerFile) //nolint:gosec
-	if err != nil {
-		return errors.Wrap(err, "error creating cache marker")
-	}
-
-	if _, err := f.WriteString(cacheDirMarkerContents); err != nil {
-		return errors.Wrap(err, "unable to write cachedir marker contents")
-	}
-
-	return errors.Wrap(f.Close(), "error closing cache marker file")
-}
-
-func formatBytesCachingEnabled(cacheDirectory string, validDuration time.Duration) bool {
-	if cacheDirectory == "" {
-		return false
-	}
-
-	return validDuration > 0
-}
-
-func readRepositoryBlobBytesFromCache(ctx context.Context, cachedFile string, validDuration time.Duration) (data []byte, cacheMTime time.Time, err error) {
-	cst, err := os.Stat(cachedFile)
-	if err != nil {
-		return nil, time.Time{}, errors.Wrap(err, "unable to open cache file")
-	}
-
-	cacheMTime = cst.ModTime()
-	if clock.Now().Sub(cacheMTime) > validDuration {
-		// got cached file, but it's too old, remove it
-		if err = os.Remove(cachedFile); err != nil {
-			log(ctx).Debugf("unable to remove cache file: %v", err)
-		}
-
-		return nil, time.Time{}, errors.Errorf("cached file too old")
-	}
-
-	data, err = os.ReadFile(cachedFile) // nolint:gosec
-	if err != nil {
-		return nil, time.Time{}, errors.Wrapf(err, "failed to read the cache file %q", cachedFile)
-	}
-
-	return data, cacheMTime, nil
-}
-
-func readAndCacheRepositoryBlobBytes(ctx context.Context, st blob.Storage, cacheDirectory, blobID string, validDuration time.Duration) ([]byte, time.Time, error) {
-	cachedFile := filepath.Join(cacheDirectory, blobID)
-
-	if validDuration == 0 {
-		validDuration = DefaultRepositoryBlobCacheDuration
-	}
-
-	if cacheDirectory != "" {
-		if err := os.MkdirAll(cacheDirectory, cache.DirMode); err != nil && !os.IsExist(err) {
-			log(ctx).Errorf("unable to create cache directory: %v", err)
-		}
-	}
-
-	cacheEnabled := formatBytesCachingEnabled(cacheDirectory, validDuration)
-	if cacheEnabled {
-		data, cacheMTime, err := readRepositoryBlobBytesFromCache(ctx, cachedFile, validDuration)
-		if err == nil {
-			log(ctx).Debugf("%s retrieved from cache", blobID)
-
-			return data, cacheMTime, nil
-		}
-
-		if os.IsNotExist(err) {
-			log(ctx).Debugf("%s could not be fetched from cache: %v", blobID, err)
-		}
-	} else {
-		log(ctx).Debugf("%s cache not enabled", blobID)
-	}
-
-	var b gather.WriteBuffer
-	defer b.Close()
-
-	if err := st.GetBlob(ctx, blob.ID(blobID), 0, -1, &b); err != nil {
-		return nil, time.Time{}, errors.Wrapf(err, "error getting %s blob", blobID)
-	}
-
-	if cacheEnabled {
-		if err := atomicfile.Write(cachedFile, b.Bytes().Reader()); err != nil {
-			log(ctx).Warnf("unable to write cache: %v", err)
-		}
-	}
-
-	return b.ToByteSlice(), clock.Now(), nil
 }

@@ -9,10 +9,10 @@ import (
 
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/blob"
-	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/ecc"
 	"github.com/kopia/kopia/repo/encryption"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/hashing"
-	"github.com/kopia/kopia/repo/object"
 	"github.com/kopia/kopia/repo/splitter"
 	"github.com/kopia/kopia/snapshot/policy"
 )
@@ -24,13 +24,15 @@ $ kopia repository validate-provider
 `
 
 type commandRepositoryCreate struct {
-	createBlockHashFormat       string
-	createBlockEncryptionFormat string
-	createSplitter              string
-	createOnly                  bool
-	createFormatVersion         int
-	retentionMode               string
-	retentionPeriod             time.Duration
+	createBlockHashFormat         string
+	createBlockEncryptionFormat   string
+	createBlockECCFormat          string
+	createBlockECCOverheadPercent int
+	createSplitter                string
+	createOnly                    bool
+	createFormatVersion           int
+	retentionMode                 string
+	retentionPeriod               time.Duration
 
 	co  connectOptions
 	svc advancedAppServices
@@ -42,6 +44,8 @@ func (c *commandRepositoryCreate) setup(svc advancedAppServices, parent commandP
 
 	cmd.Flag("block-hash", "Content hash algorithm.").PlaceHolder("ALGO").Default(hashing.DefaultAlgorithm).EnumVar(&c.createBlockHashFormat, hashing.SupportedAlgorithms()...)
 	cmd.Flag("encryption", "Content encryption algorithm.").PlaceHolder("ALGO").Default(encryption.DefaultAlgorithm).EnumVar(&c.createBlockEncryptionFormat, encryption.SupportedAlgorithms(false)...)
+	cmd.Flag("ecc", "[EXPERIMENTAL] Error correction algorithm.").PlaceHolder("ALGO").Default(ecc.DefaultAlgorithm).EnumVar(&c.createBlockECCFormat, ecc.SupportedAlgorithms()...)
+	cmd.Flag("ecc-overhead-percent", "[EXPERIMENTAL] How much space overhead can be used for error correction, in percentage. Use 0 to disable ECC.").Default("0").IntVar(&c.createBlockECCOverheadPercent)
 	cmd.Flag("object-splitter", "The splitter to use for new objects in the repository").Default(splitter.DefaultAlgorithm).EnumVar(&c.createSplitter, splitter.SupportedAlgorithms()...)
 	cmd.Flag("create-only", "Create repository, but don't connect to it.").Short('c').BoolVar(&c.createOnly)
 	cmd.Flag("format-version", "Force a particular repository format version (1 or 2, 0==default)").IntVar(&c.createFormatVersion)
@@ -62,7 +66,7 @@ func (c *commandRepositoryCreate) setup(svc advancedAppServices, parent commandP
 		cc := cmd.Command(prov.Name, "Create repository in "+prov.Description)
 		f.Setup(svc, cc)
 		cc.Action(func(kpc *kingpin.ParseContext) error {
-			// nolint:wrapcheck
+			//nolint:wrapcheck
 			return svc.runAppWithContext(kpc.SelectedCommand, func(ctx context.Context) error {
 				st, err := f.Connect(ctx, true, c.createFormatVersion)
 				if err != nil {
@@ -77,15 +81,17 @@ func (c *commandRepositoryCreate) setup(svc advancedAppServices, parent commandP
 
 func (c *commandRepositoryCreate) newRepositoryOptionsFromFlags() *repo.NewRepositoryOptions {
 	return &repo.NewRepositoryOptions{
-		BlockFormat: content.FormattingOptions{
-			MutableParameters: content.MutableParameters{
-				Version: content.FormatVersion(c.createFormatVersion),
+		BlockFormat: format.ContentFormat{
+			MutableParameters: format.MutableParameters{
+				Version: format.Version(c.createFormatVersion),
 			},
-			Hash:       c.createBlockHashFormat,
-			Encryption: c.createBlockEncryptionFormat,
+			Hash:               c.createBlockHashFormat,
+			Encryption:         c.createBlockEncryptionFormat,
+			ECC:                c.createBlockECCFormat,
+			ECCOverheadPercent: c.createBlockECCOverheadPercent,
 		},
 
-		ObjectFormat: object.Format{
+		ObjectFormat: format.ObjectFormat{
 			Splitter: c.createSplitter,
 		},
 
@@ -129,6 +135,11 @@ func (c *commandRepositoryCreate) runCreateCommandWithStorage(ctx context.Contex
 
 	log(ctx).Infof("  block hash:          %v", options.BlockFormat.Hash)
 	log(ctx).Infof("  encryption:          %v", options.BlockFormat.Encryption)
+
+	if options.BlockFormat.ECC != "" && options.BlockFormat.ECCOverheadPercent > 0 {
+		log(ctx).Infof("  ecc:                 %v with %v%% overhead", options.BlockFormat.ECC, options.BlockFormat.ECCOverheadPercent)
+	}
+
 	log(ctx).Infof("  splitter:            %v", options.ObjectFormat.Splitter)
 
 	if err := repo.Initialize(ctx, st, options, pass); err != nil {
@@ -147,7 +158,7 @@ func (c *commandRepositoryCreate) runCreateCommandWithStorage(ctx context.Contex
 		return errors.Wrap(err, "error populating repository")
 	}
 
-	noteColor.Fprintf(c.out.stdout(), runValidationNote) // nolint:errcheck
+	noteColor.Fprintf(c.out.stdout(), runValidationNote) //nolint:errcheck
 
 	return nil
 }
@@ -159,7 +170,7 @@ func (c *commandRepositoryCreate) populateRepository(ctx context.Context, passwo
 	}
 	defer rep.Close(ctx) //nolint:errcheck
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return repo.WriteSession(ctx, rep, repo.WriteSessionOptions{
 		Purpose: "populate repository",
 	}, func(ctx context.Context, w repo.RepositoryWriter) error {

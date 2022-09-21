@@ -30,10 +30,10 @@ type internalLogManager struct {
 
 	// internalLogManager implements io.Writer and we must be able to write to the
 	// repository asynchronously when the context is not provided.
-	ctx context.Context // nolint:containedctx
+	ctx context.Context //nolint:containedctx
 
 	st             blob.Storage
-	bc             *Crypter
+	bc             crypter
 	wg             sync.WaitGroup
 	timeFunc       func() time.Time
 	flushThreshold int
@@ -48,7 +48,7 @@ func (m *internalLogManager) encryptAndWriteLogBlob(prefix blob.ID, data gather.
 	encrypted := gather.NewWriteBuffer()
 	// Close happens in a goroutine
 
-	blobID, err := m.bc.EncryptBLOB(data, prefix, "", encrypted)
+	blobID, err := EncryptBLOB(m.bc, data, prefix, "", encrypted)
 	if err != nil {
 		encrypted.Close()
 
@@ -76,7 +76,7 @@ func (m *internalLogManager) encryptAndWriteLogBlob(prefix blob.ID, data gather.
 func (m *internalLogManager) NewLogger() *zap.SugaredLogger {
 	var rnd [2]byte
 
-	rand.Read(rnd[:]) // nolint:errcheck
+	rand.Read(rnd[:]) //nolint:errcheck
 
 	w := &internalLogger{
 		m:      m,
@@ -208,7 +208,7 @@ func (l *internalLogger) Sync() error {
 }
 
 // newInternalLogManager creates a new blobLogManager that will emit logs as repository blobs with a given prefix.
-func newInternalLogManager(ctx context.Context, st blob.Storage, bc *Crypter) *internalLogManager {
+func newInternalLogManager(ctx context.Context, st blob.Storage, bc crypter) *internalLogManager {
 	return &internalLogManager{
 		ctx:            ctx,
 		st:             st,

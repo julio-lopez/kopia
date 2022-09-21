@@ -16,6 +16,7 @@ import (
 	"github.com/kopia/kopia/internal/remoterepoapi"
 	"github.com/kopia/kopia/repo/compression"
 	"github.com/kopia/kopia/repo/content"
+	"github.com/kopia/kopia/repo/format"
 	"github.com/kopia/kopia/repo/hashing"
 	"github.com/kopia/kopia/repo/manifest"
 	"github.com/kopia/kopia/repo/object"
@@ -33,7 +34,7 @@ type APIServerInfo struct {
 type apiServerRepository struct {
 	cli                              *apiclient.KopiaAPIClient
 	h                                hashing.HashFunc
-	objectFormat                     object.Format
+	objectFormat                     format.ObjectFormat
 	serverSupportsContentCompression bool
 	cliOpts                          ClientOptions
 	omgr                             *object.Manager
@@ -60,7 +61,7 @@ func (r *apiServerRepository) ClientOptions() ClientOptions {
 }
 
 func (r *apiServerRepository) OpenObject(ctx context.Context, id object.ID) (object.Reader, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.Open(ctx, r, id)
 }
 
@@ -70,12 +71,12 @@ func (r *apiServerRepository) NewObjectWriter(ctx context.Context, opt object.Wr
 
 // ConcatenateObjects creates a concatenated objects from the provided object IDs.
 func (r *apiServerRepository) ConcatenateObjects(ctx context.Context, objectIDs []object.ID) (object.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return r.omgr.Concatenate(ctx, objectIDs)
 }
 
 func (r *apiServerRepository) VerifyObject(ctx context.Context, id object.ID) ([]content.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.VerifyObject(ctx, r, id)
 }
 
@@ -86,7 +87,7 @@ func (r *apiServerRepository) GetManifest(ctx context.Context, id manifest.ID, d
 		return nil, errors.Wrap(err, "GetManifest")
 	}
 
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return mm.Metadata, json.Unmarshal(mm.Payload, data)
 }
 
@@ -144,8 +145,8 @@ func (r *apiServerRepository) Flush(ctx context.Context) error {
 	return errors.Wrap(r.cli.Post(ctx, "flush", nil, nil), "Flush")
 }
 
-func (r *apiServerRepository) SupportsContentCompression() bool {
-	return r.serverSupportsContentCompression
+func (r *apiServerRepository) SupportsContentCompression() (bool, error) {
+	return r.serverSupportsContentCompression, nil
 }
 
 func (r *apiServerRepository) NewWriter(ctx context.Context, opt WriteSessionOptions) (context.Context, RepositoryWriter, error) {
@@ -187,12 +188,12 @@ func (r *apiServerRepository) GetContent(ctx context.Context, contentID content.
 			return errors.Wrap(err, "GetContent")
 		}
 
-		tmp.Write(result) // nolint:errcheck
+		tmp.Write(result) //nolint:errcheck
 
 		return nil
 	}, &tmp)
 	if err != nil {
-		// nolint:wrapcheck
+		//nolint:wrapcheck
 		return nil, err
 	}
 
@@ -210,11 +211,14 @@ func (r *apiServerRepository) WriteContent(ctx context.Context, data gather.Byte
 	if err != nil {
 		return content.EmptyID, errors.Wrap(err, "invalid content ID")
 	}
-
-	// avoid uploading the content body if it already exists.
-	if _, err := r.ContentInfo(ctx, contentID); err == nil {
-		// content already exists
-		return contentID, nil
+	// if content is large enough, perform existence check on the server,
+	// for small contents we skip the check, since the server-side existence
+	// check is fast and we avoid double round trip.
+	if data.Length() >= writeContentCheckExistenceAboveSize {
+		if _, err := r.ContentInfo(ctx, contentID); err == nil {
+			// content already exists
+			return contentID, nil
+		}
 	}
 
 	r.wso.OnUpload(int64(data.Length()))
@@ -251,7 +255,7 @@ func (r *apiServerRepository) Close(ctx context.Context) error {
 }
 
 func (r *apiServerRepository) PrefetchObjects(ctx context.Context, objectIDs []object.ID, hint string) ([]content.ID, error) {
-	// nolint:wrapcheck
+	//nolint:wrapcheck
 	return object.PrefetchBackingContents(ctx, r, objectIDs, hint)
 }
 
@@ -306,7 +310,7 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, cliOpts Clien
 	}
 
 	rr.h = hf
-	rr.objectFormat = p.Format
+	rr.objectFormat = p.ObjectFormat
 	rr.serverSupportsContentCompression = p.SupportsContentCompression
 
 	// create object manager using rr as contentManager implementation.
