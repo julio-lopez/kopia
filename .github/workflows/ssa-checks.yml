@@ -26,12 +26,12 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
     -
-      # TODO: add Make target for it
+      id: govulncheck
       name: Vuln Check
-      run: |
-        set -xue
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck -test ./...
+      uses: golang/govulncheck-action@7da72f730e37eeaad891fcff0a532d27ed737cd4
+      with:
+        go-version-file: 'go.mod'
+        repo-checkout: false
     -
       name: GoKart
       continue-on-error: true
