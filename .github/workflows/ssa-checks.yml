@@ -26,6 +26,9 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
     -
+      name: Build Kopia
+      run: make install
+    -
       id: govulncheck
       name: Vuln Check
       uses: golang/govulncheck-action@7da72f730e37eeaad891fcff0a532d27ed737cd4
