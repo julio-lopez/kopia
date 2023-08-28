@@ -25,9 +25,9 @@ jobs:
       with:
         go-version-file: 'go.mod'
         cache: true
-    -
-      name: Build Kopia
-      run: make install
+    # -
+    #   name: Build Kopia
+    #   run: make install
     -
       id: govulncheck
       name: Vuln Check
