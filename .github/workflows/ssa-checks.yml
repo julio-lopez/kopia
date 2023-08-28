@@ -35,6 +35,7 @@ jobs:
       with:
         go-version-file: 'go.mod'
         repo-checkout: false
+        cache: false
     -
       name: GoKart
       # continue-on-error: true
