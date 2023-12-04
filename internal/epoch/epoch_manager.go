@@ -692,6 +692,16 @@ func (e *Manager) refreshAttemptLocked(ctx context.Context) error {
 		return errors.Wrap(err, "error refreshing")
 	}
 
+	// TODO(julio): confirm that writeEpoch - 1 has not been compacted, even
+	// though it shouldn't have been from this client's point of view. Even if
+	// this client's view the current writeEpoch is 'we', it could have been
+	// advanced to 'we+1' after this client loaded the write epoch, which means
+	// that 'writeEpoch - 1' may now be elegible for compaction, it may have
+	// been compacted and this client may have "seen" / loaded the compaction
+	// Also, there are no guarantees about the timeframe of when an epoch will
+	// be compacted, it is possible that cs.WriteEpoch -2 has not been
+	// compacted yet. However, there is no explicit check to ensure that no
+	// epochs are missing and thus, there is a complete set.
 	ues, err := e.loadUncompactedEpochs(ctx, cs.WriteEpoch-1, cs.WriteEpoch+1)
 	if err != nil {
 		return errors.Wrap(err, "error loading uncompacted epochs")
