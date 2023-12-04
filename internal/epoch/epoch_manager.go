@@ -591,6 +591,8 @@ func (e *Manager) maybeGenerateNextRangeCheckpointAsync(ctx context.Context, cs 
 
 	e.log.Debugf("generating range checkpoint")
 
+	// TODO: ensure a single generate range checkpoint background task executes
+	// at a time. Avoid launching a new one if there is one already running.
 	e.backgroundWork.Add(1)
 
 	// we're starting background work, ignore parent cancellation signal.
