@@ -246,9 +246,7 @@ func (c *commandSnapshotCreate) setupUploader(ctx context.Context, rep repo.Repo
 		pproflogging.MaybeStartProfileBuffers(ctx0)
 	})
 
-	c.svc.onTerminate(func() {
-		u.Cancel()
-	})
+	c.svc.onTerminate(u.Cancel)
 
 	u.ForceHashPercentage = c.snapshotCreateForceHash
 	u.ParallelUploads = c.snapshotCreateParallelUploads
