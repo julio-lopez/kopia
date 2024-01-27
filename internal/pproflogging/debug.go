@@ -158,14 +158,6 @@ func newProfileConfigs(wrt Writer) *ProfileConfigs {
 	return q
 }
 
-// SetWriter set the destination for the PPROF dump.
-func (p *ProfileConfigs) SetWriter(wrt Writer) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.wrt = wrt
-}
-
 func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *ProfileConfig {
 	if p == nil {
 		return nil
