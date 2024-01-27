@@ -147,7 +147,7 @@ func MaybeStopProfileBuffers(ctx context.Context) {
 	pprofConfigs.mu.Lock()
 	defer pprofConfigs.mu.Unlock()
 
-	pprofConfigs.StopProfileBuffers(ctx)
+	pprofConfigs.stopProfileBuffers(ctx)
 }
 
 func newProfileConfigs(wrt Writer) *ProfileConfigs {
@@ -409,9 +409,9 @@ func parseDebugNumber(v *ProfileConfig) (int, error) {
 	return debug, nil
 }
 
-// StopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
+// stopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
 // supplied here are from MaybeStartProfileBuffers.
-func (p *ProfileConfigs) StopProfileBuffers(ctx context.Context) {
+func (p *ProfileConfigs) stopProfileBuffers(ctx context.Context) {
 	defer func() {
 		// clear the profile rates and fractions to effectively stop profiling
 		clearProfileFractions(p.pcm)
