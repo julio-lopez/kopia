@@ -183,7 +183,7 @@ func TestDebug_DumpPem(t *testing.T) {
 	ctx := context.Background()
 	wrt := bytes.Buffer{}
 	// DumpPem dump a PEM version of the byte slice, bs, into writer, wrt.
-	err := DumpPem(ctx, []byte("this is a sample PEM"), "test", &wrt)
+	err := dumpPEM(ctx, []byte("this is a sample PEM"), "test", &wrt)
 	require.NoError(t, err)
 	require.Equal(t, "-----BEGIN test-----\ndGhpcyBpcyBhIHNhbXBsZSBQRU0=\n-----END test-----\n\n", wrt.String())
 }

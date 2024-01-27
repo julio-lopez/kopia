@@ -323,8 +323,8 @@ func (p *ProfileConfigs) startProfileBuffers(ctx context.Context) {
 	}
 }
 
-// DumpPem dump a PEM version of the byte slice, bs, into writer, wrt.
-func DumpPem(ctx context.Context, bs []byte, types string, wrt Writer) error {
+// dumpPEM dump a PEM version of the byte slice, bs, into writer, wrt.
+func dumpPEM(ctx context.Context, bs []byte, types string, wrt Writer) error {
 	// err0 for background process
 	var err0 error
 
@@ -483,7 +483,7 @@ func (p *ProfileConfigs) StopProfileBuffers(ctx context.Context) {
 
 		log(ctx).Infof("dumping PEM for %q", unm)
 
-		err = DumpPem(ctx, v.buf.Bytes(), unm, p.wrt)
+		err = dumpPEM(ctx, v.buf.Bytes(), unm, p.wrt)
 		if err != nil {
 			log(ctx).With("cause", err).Errorf("%q: cannot write PEM", unm)
 			return
