@@ -113,8 +113,6 @@ var pprofProfileRates = map[ProfileName]pprofSetRate{
 
 // MaybeStartProfileBuffers start profile buffers for this process.
 func MaybeStartProfileBuffers(ctx context.Context) {
-	var err error
-
 	pcm, err := loadProfileConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
 	if err != nil {
 		log(ctx).With("error", err).Debug("cannot start configured profile buffers")
