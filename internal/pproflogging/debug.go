@@ -85,8 +85,8 @@ type profileConfig struct {
 	buf   *bytes.Buffer
 }
 
-// ProfileConfigs configuration flags for all requested profiles.
-type ProfileConfigs struct {
+// profileConfigs configuration flags for all requested profiles.
+type profileConfigs struct {
 	mu sync.Mutex
 	// +checklocks:mu
 	wrt Writer
@@ -150,15 +150,15 @@ func MaybeStopProfileBuffers(ctx context.Context) {
 	pprofConfigs.stopProfileBuffers(ctx)
 }
 
-func newProfileConfigs(wrt Writer) *ProfileConfigs {
-	q := &ProfileConfigs{
+func newProfileConfigs(wrt Writer) *profileConfigs {
+	q := &profileConfigs{
 		wrt: wrt,
 	}
 
 	return q
 }
 
-func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *profileConfig {
+func (p *profileConfigs) getProfileConfig(nm ProfileName) *profileConfig {
 	if p == nil {
 		return nil
 	}
@@ -306,7 +306,7 @@ func clearProfileFractions(profileBuffers map[ProfileName]*profileConfig) {
 // startProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
 // are returned in a slice of buffers: CPU, Heap and trace respectively.  class
 // is used to distinguish profiles external to kopia.
-func (p *ProfileConfigs) startProfileBuffers(ctx context.Context) {
+func (p *profileConfigs) startProfileBuffers(ctx context.Context) {
 	// profiling rates need to be set before starting profiling
 	setupProfileFractions(ctx, p.pcm)
 
@@ -411,7 +411,7 @@ func parseDebugNumber(v *profileConfig) (int, error) {
 
 // stopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
 // supplied here are from MaybeStartProfileBuffers.
-func (p *ProfileConfigs) stopProfileBuffers(ctx context.Context) {
+func (p *profileConfigs) stopProfileBuffers(ctx context.Context) {
 	defer func() {
 		// clear the profile rates and fractions to effectively stop profiling
 		clearProfileFractions(p.pcm)
