@@ -12,7 +12,6 @@ import (
 
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/fs/virtualfs"
-	"github.com/kopia/kopia/internal/pproflogging"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/snapshot"
 	"github.com/kopia/kopia/snapshot/policy"
@@ -234,17 +233,6 @@ func (c *commandSnapshotCreate) setupUploader(ctx context.Context, rep repo.Repo
 	if interval := c.snapshotCreateCheckpointInterval; interval != 0 {
 		u.CheckpointInterval = interval
 	}
-
-	c.svc.onDebugDump(func() {
-		ctx0, canfn := context.WithTimeout(ctx, pproflogging.PPROFDumpTimeout)
-		defer canfn()
-
-		log(ctx0).Infof("Dumping profiles...")
-
-		pproflogging.MaybeStopProfileBuffers(ctx0)
-		// restart profile buffers as this does not kill the process
-		pproflogging.MaybeStartProfileBuffers(ctx0)
-	})
 
 	c.svc.onTerminate(u.Cancel)
 
