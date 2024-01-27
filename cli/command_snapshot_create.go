@@ -248,12 +248,6 @@ func (c *commandSnapshotCreate) setupUploader(ctx context.Context, rep repo.Repo
 
 	c.svc.onTerminate(func() {
 		u.Cancel()
-
-		// use new context as old one may have already errored out
-		ctx0, canfn := context.WithTimeout(context.Background(), pproflogging.PPROFDumpTimeout)
-		defer canfn()
-
-		pproflogging.MaybeStopProfileBuffers(ctx0)
 	})
 
 	u.ForceHashPercentage = c.snapshotCreateForceHash
