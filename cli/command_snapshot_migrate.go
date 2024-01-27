@@ -44,7 +44,6 @@ func (c *commandSnapshotMigrate) setup(svc advancedAppServices, parent commandPa
 	c.out.setup(svc)
 }
 
-//nolint:funlen
 func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.RepositoryWriter) error {
 	sourceRepo, err := c.openSourceRepo(ctx)
 	if err != nil {
