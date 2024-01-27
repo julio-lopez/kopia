@@ -233,11 +233,6 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		shutdownServer(ctx, httpServer)
 	})
 
-	c.svc.onDebugDump(func() {
-		pproflogging.MaybeStopProfileBuffers(ctx)
-		pproflogging.MaybeStartProfileBuffers(ctx)
-	})
-
 	m := mux.NewRouter()
 
 	c.setupHandlers(srv, m)
