@@ -79,8 +79,8 @@ type Writer interface {
 	io.StringWriter
 }
 
-// ProfileConfig configuration flags for a profile.
-type ProfileConfig struct {
+// profileConfig configuration flags for a profile.
+type profileConfig struct {
 	flags []string
 	buf   *bytes.Buffer
 }
@@ -91,7 +91,7 @@ type ProfileConfigs struct {
 	// +checklocks:mu
 	wrt Writer
 	// +checklocks:mu
-	pcm map[ProfileName]*ProfileConfig
+	pcm map[ProfileName]*profileConfig
 }
 
 type pprofSetRate struct {
@@ -158,7 +158,7 @@ func newProfileConfigs(wrt Writer) *ProfileConfigs {
 	return q
 }
 
-func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *ProfileConfig {
+func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *profileConfig {
 	if p == nil {
 		return nil
 	}
@@ -170,7 +170,7 @@ func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *ProfileConfig {
 }
 
 // Parse ppconfigs to configure profiling.
-func loadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]*ProfileConfig, error) {
+func loadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]*profileConfig, error) {
 	// if empty, then don't bother configuring but emit a log message - use might be expecting them to be configured
 	if ppconfigss == "" {
 		return nil, nil
@@ -188,7 +188,7 @@ func loadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]
 // getValue get the value of the named flag, `s`.  False will be returned
 // if the flag does not exist. True will be returned if flag exists without
 // a value.
-func (p *ProfileConfig) getValue(s string) (string, bool) {
+func (p *profileConfig) getValue(s string) (string, bool) {
 	if p == nil {
 		return "", false
 	}
@@ -210,8 +210,8 @@ func (p *ProfileConfig) getValue(s string) (string, bool) {
 }
 
 // parseProfileConfigs.
-func parseProfileConfigs(bufSizeB int, ppconfigs string) (map[ProfileName]*ProfileConfig, error) {
-	pbs := map[ProfileName]*ProfileConfig{}
+func parseProfileConfigs(bufSizeB int, ppconfigs string) (map[ProfileName]*profileConfig, error) {
+	pbs := map[ProfileName]*profileConfig{}
 	allProfileOptions := strings.Split(ppconfigs, ":")
 
 	for _, profileOptionWithFlags := range allProfileOptions {
@@ -238,8 +238,8 @@ func parseProfileConfigs(bufSizeB int, ppconfigs string) (map[ProfileName]*Profi
 }
 
 // newProfileConfig create a new profiling configuration.
-func newProfileConfig(bufSizeB int, ppconfig string) *ProfileConfig {
-	q := &ProfileConfig{
+func newProfileConfig(bufSizeB int, ppconfig string) *profileConfig {
+	q := &profileConfig{
 		buf: bytes.NewBuffer(make([]byte, 0, bufSizeB)),
 	}
 
@@ -254,7 +254,7 @@ func newProfileConfig(bufSizeB int, ppconfig string) *ProfileConfig {
 // setupProfileFractions somewhat complex setup for profile buffers.  The intent
 // is to implement a generic method for setting up _any_ pprofule.  This is done
 // in anticipation of using different or custom profiles.
-func setupProfileFractions(ctx context.Context, profileBuffers map[ProfileName]*ProfileConfig) {
+func setupProfileFractions(ctx context.Context, profileBuffers map[ProfileName]*profileConfig) {
 	for k, pprofset := range pprofProfileRates {
 		v, ok := profileBuffers[k]
 		if !ok {
@@ -287,7 +287,7 @@ func setupProfileFractions(ctx context.Context, profileBuffers map[ProfileName]*
 }
 
 // clearProfileFractions set the profile fractions to their zero values.
-func clearProfileFractions(profileBuffers map[ProfileName]*ProfileConfig) {
+func clearProfileFractions(profileBuffers map[ProfileName]*profileConfig) {
 	for k, pprofset := range pprofProfileRates {
 		v := profileBuffers[k]
 		if v == nil { // fold missing values and empty values
@@ -395,7 +395,7 @@ func dumpPEM(ctx context.Context, bs []byte, types string, wrt Writer) error {
 	return fmt.Errorf("error reading bytes: %w", err1)
 }
 
-func parseDebugNumber(v *ProfileConfig) (int, error) {
+func parseDebugNumber(v *profileConfig) (int, error) {
 	debugs, ok := v.getValue(KopiaDebugFlagDebug)
 	if !ok {
 		return 0, nil
@@ -415,7 +415,7 @@ func (p *ProfileConfigs) stopProfileBuffers(ctx context.Context) {
 	defer func() {
 		// clear the profile rates and fractions to effectively stop profiling
 		clearProfileFractions(p.pcm)
-		p.pcm = map[ProfileName]*ProfileConfig{}
+		p.pcm = map[ProfileName]*profileConfig{}
 	}()
 
 	log(ctx).Debugf("saving %d PEM buffers for output", len(p.pcm))
