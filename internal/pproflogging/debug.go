@@ -115,7 +115,7 @@ var pprofProfileRates = map[ProfileName]pprofSetRate{
 func MaybeStartProfileBuffers(ctx context.Context) {
 	var err error
 
-	pcm, err := LoadProfileConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
+	pcm, err := loadProfileConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
 	if err != nil {
 		log(ctx).With("error", err).Debug("cannot start configured profile buffers")
 		return
@@ -178,8 +178,8 @@ func (p *ProfileConfigs) GetProfileConfig(nm ProfileName) *ProfileConfig {
 	return p.pcm[nm]
 }
 
-// LoadProfileConfig configure PPROF profiling from the config in ppconfigss.
-func LoadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]*ProfileConfig, error) {
+// Parse ppconfigs to configure profiling.
+func loadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]*ProfileConfig, error) {
 	// if empty, then don't bother configuring but emit a log message - use might be expecting them to be configured
 	if ppconfigss == "" {
 		return nil, nil

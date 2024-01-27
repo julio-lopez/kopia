@@ -335,7 +335,7 @@ func TestDebug_LoadProfileConfigs(t *testing.T) {
 
 	for i, tc := range tcs {
 		t.Run(fmt.Sprintf("%d: %q", i, tc.inArgs), func(t *testing.T) {
-			pmp, err := LoadProfileConfig(ctx, tc.inArgs)
+			pmp, err := loadProfileConfig(ctx, tc.inArgs)
 			require.ErrorIs(t, tc.expectError, err)
 			if err != nil {
 				return
