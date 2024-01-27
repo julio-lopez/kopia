@@ -226,22 +226,17 @@ func (c *commandServerStart) run(ctx context.Context) error {
 	}
 
 	c.svc.onTerminate(func() {
-		log(ctx).Infof("Shutting down...")
 		shutdownServer(ctx, httpServer)
 	})
 
 	c.svc.onRepositoryFatalError(func(_ error) {
-		if serr := httpServer.Shutdown(ctx); serr != nil {
-			log(ctx).Debugf("unable to shut down: %v", serr)
-		}
+		shutdownServer(ctx, httpServer)
 	})
 
 	c.svc.onDebugDump(func() {
 		pproflogging.MaybeStopProfileBuffers(ctx)
 		pproflogging.MaybeStartProfileBuffers(ctx)
 	})
-
-	c.svc.onRepositoryFatalError(func(error) { shutdownServer(ctx, httpServer) })
 
 	m := mux.NewRouter()
 
@@ -282,10 +277,10 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 // shutdownServer shutdown http server and close the repository.
 func shutdownServer(ctx context.Context, httpServer *http.Server) {
-	log(ctx).Infof("Shutting down...")
+	log(ctx).Infof("Shutting down server...")
 
 	if serr := httpServer.Shutdown(ctx); serr != nil {
-		log(ctx).Debugf("unable to shut down http server: %v", serr)
+		log(ctx).Errorln("unable to shut down http server:", serr)
 	}
 }
 
