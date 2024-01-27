@@ -20,7 +20,6 @@ import (
 
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
-	"github.com/kopia/kopia/internal/pproflogging"
 	"github.com/kopia/kopia/internal/server"
 	"github.com/kopia/kopia/repo"
 )
@@ -211,8 +210,6 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 		// wait for all connections to finish for up to 5 seconds
 		log(ctx2).Debugf("attempting graceful shutdown for %v", c.shutdownGracePeriod)
-
-		pproflogging.MaybeStopProfileBuffers(ctx)
 
 		if serr := httpServer.Shutdown(ctx2); serr != nil {
 			// graceful shutdown unsuccessful, force close
