@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/fs"
-	"github.com/kopia/kopia/internal/pproflogging"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/snapshot"
 	"github.com/kopia/kopia/snapshot/policy"
@@ -74,11 +73,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 	c.svc.getProgress().StartShared()
 
 	c.svc.onTerminate(func() {
-		// use new context as old one may have already errored out
-		var canfn context.CancelFunc
-		ctx, canfn = context.WithTimeout(context.Background(), pproflogging.PPROFDumpTimeout)
-		defer canfn()
-
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -93,8 +87,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 			log(ctx).Infof("canceling active uploader for %v", s)
 			u.Cancel()
 		}
-
-		pproflogging.MaybeStopProfileBuffers(ctx)
 	})
 
 	if c.migratePolicies {
