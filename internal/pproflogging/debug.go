@@ -185,10 +185,10 @@ func loadProfileConfig(ctx context.Context, ppconfigss string) (map[ProfileName]
 	return parseProfileConfigs(bufSizeB, ppconfigss)
 }
 
-// GetValue get the value of the named flag, `s`.  False will be returned
+// getValue get the value of the named flag, `s`.  False will be returned
 // if the flag does not exist. True will be returned if flag exists without
 // a value.
-func (p *ProfileConfig) GetValue(s string) (string, bool) {
+func (p *ProfileConfig) getValue(s string) (string, bool) {
 	if p == nil {
 		return "", false
 	}
@@ -268,7 +268,7 @@ func setupProfileFractions(ctx context.Context, profileBuffers map[ProfileName]*
 			continue
 		}
 
-		s, _ := v.GetValue(KopiaDebugFlagRate)
+		s, _ := v.getValue(KopiaDebugFlagRate)
 		if s == "" {
 			// flag without an argument - set to default
 			pprofset.setter(pprofset.defaultValue)
@@ -294,7 +294,7 @@ func clearProfileFractions(profileBuffers map[ProfileName]*ProfileConfig) {
 			continue
 		}
 
-		_, ok := v.GetValue(KopiaDebugFlagRate)
+		_, ok := v.getValue(KopiaDebugFlagRate)
 		if !ok { // only care if a value might have been set before
 			continue
 		}
@@ -396,7 +396,7 @@ func DumpPem(ctx context.Context, bs []byte, types string, wrt Writer) error {
 }
 
 func parseDebugNumber(v *ProfileConfig) (int, error) {
-	debugs, ok := v.GetValue(KopiaDebugFlagDebug)
+	debugs, ok := v.getValue(KopiaDebugFlagDebug)
 	if !ok {
 		return 0, nil
 	}
@@ -429,7 +429,7 @@ func (p *ProfileConfigs) StopProfileBuffers(ctx context.Context) {
 
 		log(ctx).Debugf("stopping PPROF profile %q", nm)
 
-		_, ok := v.GetValue(KopiaDebugFlagForceGc)
+		_, ok := v.getValue(KopiaDebugFlagForceGc)
 		if ok {
 			log(ctx).Debug("performing GC before PPROF dump ...")
 			runtime.GC()

@@ -169,7 +169,7 @@ func TestDebug_newProfileConfigs(t *testing.T) {
 			pb := newProfileConfig(1<<10, tc.in)
 			require.NotNil(t, pb)                 // always not nil
 			require.Equal(t, pb.buf.Cap(), 1<<10) // bufsize is always 1024
-			v, ok := pb.GetValue(tc.key)
+			v, ok := pb.getValue(tc.key)
 			require.Equal(t, tc.ok, ok)
 			require.Equal(t, tc.expect, v)
 		})
@@ -345,7 +345,7 @@ func TestDebug_LoadProfileConfigs(t *testing.T) {
 			if tc.expectProfileConfigNotExists {
 				return
 			}
-			flagValue, ok := val.GetValue(tc.profileFlagKey)
+			flagValue, ok := val.getValue(tc.profileFlagKey)
 			require.Equal(t, tc.expectProfileFlagExists, ok, "expecting key %q to %t exist", tc.profileKey, tc.expectProfileFlagExists)
 			if tc.expectProfileFlagExists {
 				return
