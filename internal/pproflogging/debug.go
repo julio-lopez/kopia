@@ -133,7 +133,7 @@ func MaybeStartProfileBuffers(ctx context.Context) {
 
 	log(ctx).Debug("no profile buffer configuration to start")
 
-	pprofConfigs.StartProfileBuffers(ctx)
+	pprofConfigs.startProfileBuffers(ctx)
 }
 
 // MaybeStopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
@@ -303,10 +303,10 @@ func clearProfileFractions(profileBuffers map[ProfileName]*ProfileConfig) {
 	}
 }
 
-// StartProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
+// startProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
 // are returned in a slice of buffers: CPU, Heap and trace respectively.  class
 // is used to distinguish profiles external to kopia.
-func (p *ProfileConfigs) StartProfileBuffers(ctx context.Context) {
+func (p *ProfileConfigs) startProfileBuffers(ctx context.Context) {
 	// profiling rates need to be set before starting profiling
 	setupProfileFractions(ctx, p.pcm)
 
