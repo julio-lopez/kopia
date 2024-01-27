@@ -166,8 +166,7 @@ func (p *ProfileConfigs) SetWriter(wrt Writer) {
 	p.wrt = wrt
 }
 
-// GetProfileConfig return a profile configuration by name.
-func (p *ProfileConfigs) GetProfileConfig(nm ProfileName) *ProfileConfig {
+func (p *ProfileConfigs) getProfileConfig(nm ProfileName) *ProfileConfig {
 	if p == nil {
 		return nil
 	}

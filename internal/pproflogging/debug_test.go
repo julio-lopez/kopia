@@ -233,7 +233,7 @@ func TestDebug_parseDebugNumber(t *testing.T) {
 			MaybeStartProfileBuffers(ctx)
 			defer MaybeStopProfileBuffers(ctx)
 
-			num, err := parseDebugNumber(pprofConfigs.GetProfileConfig(tc.inKey))
+			num, err := parseDebugNumber(pprofConfigs.getProfileConfig(tc.inKey))
 			require.ErrorIs(t, tc.expectErr, err)
 			require.Equal(t, tc.expectDebugNumber, num)
 		})
