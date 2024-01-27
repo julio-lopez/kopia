@@ -97,18 +97,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 		pproflogging.MaybeStopProfileBuffers(ctx)
 	})
 
-	c.svc.onDebugDump(func() {
-		// use new context as old one may have already errored out
-		var canfn context.CancelFunc
-		ctx, canfn = context.WithTimeout(context.Background(), pproflogging.PPROFDumpTimeout)
-		defer canfn()
-
-		log(ctx).Infof("Dumping profiles...")
-
-		pproflogging.MaybeStopProfileBuffers(ctx)
-		pproflogging.MaybeStartProfileBuffers(ctx)
-	})
-
 	if c.migratePolicies {
 		if c.migrateAll {
 			err = c.migrateAllPolicies(ctx, sourceRepo, destRepo)
