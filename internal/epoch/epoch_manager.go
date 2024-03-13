@@ -751,6 +751,8 @@ func (e *Manager) refreshAttemptLocked(ctx context.Context) error {
 		return errors.Wrap(err, "error refreshing")
 	}
 
+	// perform sanity check and get highest compacted epoch.
+
 	ues, err := e.loadUncompactedEpochs(ctx, cs.WriteEpoch-1, cs.WriteEpoch+1)
 	if err != nil {
 		return errors.Wrap(err, "error loading uncompacted epochs")
