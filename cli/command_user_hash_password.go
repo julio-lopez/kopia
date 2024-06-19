@@ -8,8 +8,7 @@ import (
 )
 
 type commandServerUserHashPassword struct {
-	userAskPassword bool
-	password        string
+	password string
 
 	out textOutput
 }
@@ -19,7 +18,6 @@ func (c *commandServerUserHashPassword) setup(svc appServices, parent commandPar
 
 	cmd = parent.Command("hash-password", "Hash a user password that can be passed to the 'server user add/set' command").Alias("hash")
 
-	cmd.Flag("ask-password", "Ask for user password").BoolVar(&c.userAskPassword)
 	cmd.Flag("user-password", "Password").StringVar(&c.password)
 
 	// cmd.Action(svc.baseActionWithContext(c.runServerUserHashPassword))
