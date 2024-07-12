@@ -24,8 +24,8 @@ type Profile struct {
 	ManifestID manifest.ID `json:"-"`
 
 	Username            string `json:"username"`
-	PasswordHashVersion int    `json:"passwordHashVersion,omitempty"`
-	PasswordHash        []byte `json:"passwordHash"`
+	PasswordHashVersion int    `json:"-"`
+	PasswordHash        []byte `json:"-"`
 }
 
 // SetPassword changes the password for a user profile.

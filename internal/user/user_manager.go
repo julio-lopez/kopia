@@ -24,6 +24,13 @@ var ErrUserNotFound = errors.New("user not found")
 // ErrUserAlreadyExists indicates that a user already exist in the system when attempting to create a new one.
 var ErrUserAlreadyExists = errors.New("user already exists")
 
+type persistentProfile struct {
+	Profile
+
+	PasswordHashVersion int    `json:"passwordHashVersion"`
+	PasswordHash        []byte `json:"passwordHash"`
+}
+
 // LoadProfileMap returns the map of all users profiles in the repository by username, using old map as a cache.
 func LoadProfileMap(ctx context.Context, rep repo.Repository, old map[string]*Profile) (map[string]*Profile, error) {
 	if rep == nil {
@@ -46,12 +53,10 @@ func LoadProfileMap(ctx context.Context, rep repo.Repository, old map[string]*Pr
 			continue
 		}
 
-		p := &Profile{}
-		if _, err := rep.GetManifest(ctx, m.ID, p); err != nil {
-			return nil, errors.Wrapf(err, "error loading user manifest %v", user)
+		p, err := loadProfile(ctx, rep, m.ID, user)
+		if err != nil {
+			return nil, err
 		}
-
-		p.ManifestID = m.ID
 
 		result[user] = p
 	}
@@ -94,12 +99,22 @@ func GetUserProfile(ctx context.Context, r repo.Repository, username string) (*P
 		return nil, errors.Wrap(ErrUserNotFound, username)
 	}
 
-	p := &Profile{}
-	if _, err := r.GetManifest(ctx, manifest.PickLatestID(manifests), p); err != nil {
-		return nil, errors.Wrap(err, "error loading user profile")
+	return loadProfile(ctx, r, manifest.PickLatestID(manifests), username)
+}
+
+func loadProfile(ctx context.Context, r repo.Repository, id manifest.ID, user string) (*Profile, error) {
+	var pp persistentProfile
+
+	if _, err := r.GetManifest(ctx, id, &pp); err != nil {
+		return nil, errors.Wrapf(err, "error loading user manifest %s", user)
 	}
 
-	return p, nil
+	return &Profile{
+		ManifestID:          id,
+		Username:            pp.Username,
+		PasswordHashVersion: pp.PasswordHashVersion,
+		PasswordHash:        pp.PasswordHash,
+	}, nil
 }
 
 // GetNewProfile returns a profile for a new user with the given username.
@@ -151,10 +166,16 @@ func SetUserProfile(ctx context.Context, w repo.RepositoryWriter, p *Profile) er
 		return err
 	}
 
+	pp := persistentProfile{
+		Profile:             *p,
+		PasswordHashVersion: p.PasswordHashVersion,
+		PasswordHash:        p.PasswordHash,
+	}
+
 	id, err := w.ReplaceManifests(ctx, map[string]string{
 		manifest.TypeLabelKey:   ManifestType,
-		UsernameAtHostnameLabel: p.Username,
-	}, p)
+		UsernameAtHostnameLabel: pp.Username,
+	}, pp)
 	if err != nil {
 		return errors.Wrap(err, "error looking for user profile")
 	}
