@@ -36,7 +36,9 @@ jobs:
         go-version-file: 'go.mod'
     -
       name: Test blob manager
-      run: make -d -j4 test-index-blob-v0
+      run: |
+        env
+        make -j4 test-index-blob-v0
     -
       name: Tests
       run: make -j4 ci-tests
