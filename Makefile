@@ -273,8 +273,8 @@ test-with-coverage: export TESTING_ACTION_EXE ?= $(TESTING_ACTION_EXE)
 test-with-coverage: $(gotestsum) $(TESTING_ACTION_EXE)
 	$(GO_TEST) $(UNIT_TEST_RACE_FLAGS) -tags testing -count=$(REPEAT_TEST) -short -covermode=atomic -coverprofile=coverage.txt --coverpkg $(COVERAGE_PACKAGES) -timeout $(UNIT_TESTS_TIMEOUT) ./...
 
-test-index-blob-v0: GOTESTSUM_FORMAT=testname
-#test-index-blob-v0: GOTESTSUM_FORMAT=pkgname-and-test-fails
+#test-index-blob-v0: GOTESTSUM_FORMAT=testname
+test-index-blob-v0: GOTESTSUM_FORMAT=pkgname-and-test-fails
 test-index-blob-v0: GOTESTSUM_FLAGS=--format=$(GOTESTSUM_FORMAT) --no-summary=output,skipped --jsonfile=.tmp.index-blob-mgr-tests.json
 test-index-blob-v0: $(gotestsum) $(TESTING_ACTION_EXE)
 	$(GO_TEST) $(UNIT_TEST_RACE_FLAGS) -tags testing -count=$(REPEAT_TEST) -timeout $(UNIT_TESTS_TIMEOUT)  -run '^TestIndexBlobManagerStress$$' ./repo/content/indexblob/...
