@@ -40,7 +40,7 @@ jobs:
         mkdir -p .logs/test-blob-manager/
     -
       name: Test blob manager
-      run: make -j4 test-index-blob-v0
+      run: make test-index-blob-v0
     -
       name: Tests
       run: |
