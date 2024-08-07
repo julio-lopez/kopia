@@ -277,7 +277,7 @@ test-with-coverage: $(gotestsum) $(TESTING_ACTION_EXE)
 test-index-blob-v0: GOTESTSUM_FORMAT=pkgname-and-test-fails
 test-index-blob-v0: GOTESTSUM_FLAGS=--format=$(GOTESTSUM_FORMAT) --no-summary=output,skipped --jsonfile=.tmp.index-blob-mgr-tests.json
 test-index-blob-v0: $(gotestsum) $(TESTING_ACTION_EXE)
-	$(GO_TEST) $(UNIT_TEST_RACE_FLAGS) -tags testing -count=$(REPEAT_TEST) -timeout $(UNIT_TESTS_TIMEOUT)  -run '^TestIndexBlobManagerStress$$' ./repo/content/indexblob/...
+	$(GO_TEST) $(UNIT_TEST_RACE_FLAGS) -tags testing -count=$(REPEAT_TEST) -timeout $(UNIT_TESTS_TIMEOUT) -run '^TestIndexBlobManagerStress$$' ./repo/content/indexblob/...
 
 test: GOTESTSUM_FLAGS=--format=$(GOTESTSUM_FORMAT) --no-summary=skipped --jsonfile=.tmp.unit-tests.json
 test: export TESTING_ACTION_EXE ?= $(TESTING_ACTION_EXE)
