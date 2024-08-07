@@ -34,13 +34,13 @@ jobs:
         cache: true
         check-latest: true
         go-version-file: 'go.mod'
-    -
-      name: Test blob manager
-      run: |
+    -  run: |
         env | sort
         echo -------------
         mkdir -p .logs/test-blob-manager/
-        make -j4 test-index-blob-v0 2> .logs/test-blob-manager/test.log
+    -
+      name: Test blob manager
+      run: make -j4 test-index-blob-v0 2> .logs/test-blob-manager/test.log
     -
       name: Tests
       run: echo make -j4 ci-tests
