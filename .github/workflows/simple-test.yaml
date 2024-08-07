@@ -37,8 +37,10 @@ jobs:
     -
       name: Test blob manager
       run: |
-        env
-        make -j4 test-index-blob-v0
+        env | sort
+        echo -------------
+        mkdir -p .logs/test-blob-manager/
+        make -j4 test-index-blob-v0 2> .logs/test-blob-manager/test.log
     -
       name: Tests
       run: echo make -j4 ci-tests
