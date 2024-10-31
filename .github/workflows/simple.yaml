@@ -60,7 +60,7 @@ jobs:
         go-version-file: 'go.mod'
     -
       name: Tests
-      run: make test
+      run: make ci-tests
       continue-on-error: ${{ github.event_name != 'pull_request' }}
     -
       name: Upload Logs
