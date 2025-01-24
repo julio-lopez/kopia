@@ -5,6 +5,7 @@ updates:
     open-pull-requests-limit: 5
     schedule:
       interval: weekly
+      day: sunday
     ignore:
       # htmluibuild is explicitly updated by us
       - dependency-name: "github.com/kopia/htmluibuild"
@@ -37,13 +38,3 @@ updates:
       docker:
         patterns:
         - "docker/*"
-  - package-ecosystem: npm
-    directory: "/app"
-    schedule:
-      interval: monthly
-    groups:
-      # create once-per-week PR for all KopiaUI dependency bumps, that usually includes
-      # electron, electron-builder, etc.
-      kopia-ui-npm-dependencies:
-        patterns:
-        - "*"
