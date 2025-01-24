@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ main, local-main ]
   push:
-    branches: [ main, local-main, run-ci, linux-ci ]
+    branches: [ main, local-main, run-ci, linux-ci, test/linux-arm ]
     tags:
       - v*
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   build:
     name: Build and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
     steps:
     -
       name: Checkout
@@ -43,7 +43,7 @@ jobs:
       if: ${{ always() }}
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
     -
       name: Checkout
@@ -72,7 +72,7 @@ jobs:
       if: ${{ always() }}
   integration:
     name: Integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
     -
       name: Checkout
@@ -101,7 +101,7 @@ jobs:
       if: ${{ always() }}
   race:
     name: Race Detector
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
     -
       name: Checkout
