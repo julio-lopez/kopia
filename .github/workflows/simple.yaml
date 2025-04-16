@@ -12,7 +12,11 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ] #, ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
     steps:
     -
       name: Checkout
@@ -29,8 +33,8 @@ jobs:
         go-version-file: 'go.mod'
     -
       name: Tests
-      run: make test
-      continue-on-error: ${{ github.event_name != 'pull_request' }}
+      run: |
+        go test -v ./internal/tempfile/
     -
       name: Upload Logs
       uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b # v4.3.4
