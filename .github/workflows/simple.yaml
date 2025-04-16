@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ main, local-main ]
   push:
-    branches: [ main, local-main, run-ci, linux-ci ]
+    branches: [ main, local-main, run-ci, linux-ci, test/tempfile ]
     tags:
       - v*
 concurrency:
