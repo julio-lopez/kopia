@@ -6,6 +6,8 @@
 #
 # you will need to have git and golang too in the PATH.
 
+.PHONY: linter
+
 # windows,linux,darwin
 GOOS:=$(shell go env GOOS)
 # amd64,arm64,arm
@@ -152,6 +154,7 @@ ifeq ($(GOOS),windows)
 linter_flags=-D gofmt -D goimports
 endif
 
+linter: $(linter)
 $(linter):
 	go run github.com/kopia/kopia/tools/gettool --tool linter:$(GOLANGCI_LINT_VERSION) --output-dir $(linter_dir)
 
