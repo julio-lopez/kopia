@@ -10,7 +10,7 @@ import (
 
 const permissions = 0o600
 
-// Create creates a temporary file that will be automatically deleted on close.
+// CreateAutoDelete creates a temporary file that will be automatically deleted on close.
 func CreateAutoDelete() (*os.File, error) {
 	dir := os.TempDir()
 

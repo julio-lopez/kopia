@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Create creates a temporary file that will be automatically deleted on close.
+// CreateAutoDelete creates a temporary file that will be automatically deleted on close.
 func CreateAutoDelete() (*os.File, error) {
 	fullpath := filepath.Join(os.TempDir(), uuid.NewString())
 
