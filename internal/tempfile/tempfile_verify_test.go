@@ -3,6 +3,7 @@ package tempfile
 import (
 	"io"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,6 +39,10 @@ func VerifyTempfile(t *testing.T, create func() (*os.File, error)) {
 
 		require.Error(t, err)
 		require.ErrorAs(t, err, &perr)
-		require.ErrorContains(t, err, "no such file or directory")
+		if runtime.GOOS == "windows" {
+			require.ErrorContains(t, err, "The system cannot find the file specified")
+		} else {
+			require.ErrorContains(t, err, "no such file or directory")
+		}
 	}
 }
