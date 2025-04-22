@@ -28,6 +28,8 @@ func VerifyTempfile(t *testing.T, create func() (*os.File, error)) {
 	require.Equal(t, 4, n2)
 	require.Equal(t, []byte("ello"), buf)
 
+	f.Close()
+
 	if n := f.Name(); n != "" {
 		var perr *os.PathError
 
@@ -38,6 +40,4 @@ func VerifyTempfile(t *testing.T, create func() (*os.File, error)) {
 		require.ErrorAs(t, err, &perr)
 		require.ErrorContains(t, err, "no such file or directory")
 	}
-
-	f.Close()
 }
