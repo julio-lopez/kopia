@@ -240,7 +240,9 @@ func GroupBySource(manifests []*Manifest) [][]*Manifest {
 func SortByTime(manifests []*Manifest, reverse bool) []*Manifest {
 	result := append([]*Manifest(nil), manifests...)
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].StartTime > result[j].StartTime == reverse
+		return (result[i].StartTime > result[j].StartTime ||
+			(result[i].StartTime == result[j].StartTime &&
+				result[i].EndTime > result[j].EndTime)) == reverse
 	})
 
 	return result
