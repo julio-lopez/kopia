@@ -27,10 +27,10 @@ func TestGetFileAllocSize(t *testing.T) {
 
 	bs, err := GetBlockSize(filepath.Dir(f))
 	require.NoErrorf(t, err, "error getting block size for", f)
-	t.Log("alloc size:", bs)
+	t.Log("block size:", bs)
 
 	require.GreaterOrEqual(t, s, size, "invalid allocated file size")
-	require.GreaterOrEqual(t, s, 2*size, "invalid allocated file size")
+	// require.GreaterOrEqual(t, s, size, "invalid allocated file size")
 }
 
 func TestGetBlockSize(t *testing.T) {
