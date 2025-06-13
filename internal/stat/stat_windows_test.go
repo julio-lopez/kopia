@@ -4,6 +4,7 @@
 package stat
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,10 +14,11 @@ import (
 
 func TestGetFileAllocSize(t *testing.T) {
 	const size uint64 = 4096
+	const writeSize = 600
 
 	f := filepath.Join(t.TempDir(), "test")
 
-	err := os.WriteFile(f, []byte{1}, os.ModePerm)
+	err := os.WriteFile(f, bytes.Repeat([]byte{1}, writeSize), os.ModePerm)
 	require.NoError(t, err)
 
 	s, err := GetFileAllocSize(f)
