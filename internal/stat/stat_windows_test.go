@@ -38,3 +38,9 @@ func TestGetBlockSize(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, size, uint64(0))
 }
+
+func TestGetBlockSizeDevNull(t *testing.T) {
+	size, err := GetBlockSize(os.DevNull)
+	require.NoError(t, err)
+	require.Greater(t, size, uint64(0))
+}
