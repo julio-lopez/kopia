@@ -4,7 +4,6 @@
 package stat
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,19 +12,17 @@ import (
 )
 
 func TestGetFileAllocSize(t *testing.T) {
-	const size = 4096
+	const size uint64 = 4096
 
-	d := t.TempDir()
-	f := filepath.Join(d, "test")
-	data := bytes.Repeat([]byte{1}, size)
+	f := filepath.Join(t.TempDir(), "test")
 
-	err := os.WriteFile(f, data, os.ModePerm)
+	err := os.WriteFile(f, []byte{1}, os.ModePerm)
 	require.NoError(t, err)
 
 	s, err := GetFileAllocSize(f)
-	require.NoError(t, err, "error getting file alloc size for %s: %v", f, err)
+	require.NoError(t, err, "error getting file alloc size for", f)
 
-	require.GreaterOrEqual(t, s, size, "invalid allocated file size %d, expected at least %d", s, size)
+	require.GreaterOrEqual(t, s, size, "invalid allocated file size")
 }
 
 func TestGetBlockSize(t *testing.T) {
