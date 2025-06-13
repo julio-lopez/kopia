@@ -14,7 +14,7 @@ import (
 
 func TestGetFileAllocSize(t *testing.T) {
 	const size uint64 = 4096
-	const writeSize = 600
+	const writeSize int = int(size) + 600
 
 	f := filepath.Join(t.TempDir(), "test")
 
@@ -23,8 +23,14 @@ func TestGetFileAllocSize(t *testing.T) {
 
 	s, err := GetFileAllocSize(f)
 	require.NoError(t, err, "error getting file alloc size for", f)
+	t.Log("alloc size:", s)
+
+	bs, err := GetBlockSize(f)
+	require.NoError(t, err, "error getting block size for", f)
+	t.Log("alloc size:", bs)
 
 	require.GreaterOrEqual(t, s, size, "invalid allocated file size")
+	require.GreaterOrEqual(t, s, 2*size, "invalid allocated file size")
 }
 
 func TestGetBlockSize(t *testing.T) {
