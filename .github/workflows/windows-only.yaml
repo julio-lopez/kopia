@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ local-main ]
   push:
-    branches: [ local-main, testing/stat-windows ]
+    branches: [ local-main, testing/stat-windows, draft/stat-windows ]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
