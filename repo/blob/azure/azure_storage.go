@@ -4,6 +4,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -370,9 +371,12 @@ func New(ctx context.Context, opt *Options, isCreate bool) (blob.Storage, error)
 		storageDomain = "blob.core.windows.net"
 	}
 
-	storageHostname := fmt.Sprintf("%v.%v", opt.StorageAccount, storageDomain)
+	storageURL := &url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("%v.%v", opt.StorageAccount, storageDomain),
+	}
 
-	service, serviceErr := getAZService(opt, storageHostname)
+	service, serviceErr := getAZService(opt, storageURL)
 	if serviceErr != nil {
 		return nil, errors.Wrap(serviceErr, "opening azure service")
 	}
@@ -403,17 +407,20 @@ func New(ctx context.Context, opt *Options, isCreate bool) (blob.Storage, error)
 	return az, nil
 }
 
-func getAZService(opt *Options, storageHostname string) (*azblob.Client, error) {
+func getAZService(opt *Options, storageURL *url.URL) (*azblob.Client, error) {
 	var (
 		service    *azblob.Client
 		serviceErr error
 	)
 
+	clOpts := &azblob.ClientOptions{}
+	clOpts.ClientOptions.Telemetry.ApplicationID = "kopia"
+
 	switch {
 	// shared access signature
 	case opt.SASToken != "":
-		service, serviceErr = azblob.NewClientWithNoCredential(
-			fmt.Sprintf("https://%s?%s", storageHostname, opt.SASToken), nil)
+		storageURL.RawQuery = opt.SASToken
+		service, serviceErr = azblob.NewClientWithNoCredential(storageURL.String(), clOpts)
 	// storage account access key
 	case opt.StorageKey != "":
 		// create a credentials object.
@@ -422,9 +429,7 @@ func getAZService(opt *Options, storageHostname string) (*azblob.Client, error) 
 			return nil, errors.Wrap(err, "unable to initialize storage access key credentials")
 		}
 
-		service, serviceErr = azblob.NewClientWithSharedKeyCredential(
-			fmt.Sprintf("https://%s/", storageHostname), cred, nil,
-		)
+		service, serviceErr = azblob.NewClientWithSharedKeyCredential(storageURL.String(), cred, clOpts)
 	// client secret
 	case opt.TenantID != "" && opt.ClientID != "" && opt.ClientSecret != "":
 		cred, err := azidentity.NewClientSecretCredential(opt.TenantID, opt.ClientID, opt.ClientSecret, nil)
@@ -432,7 +437,7 @@ func getAZService(opt *Options, storageHostname string) (*azblob.Client, error) 
 			return nil, errors.Wrap(err, "unable to initialize client secret credential")
 		}
 
-		service, serviceErr = azblob.NewClient(fmt.Sprintf("https://%s/", storageHostname), cred, nil)
+		service, serviceErr = azblob.NewClient(storageURL.String(), cred, clOpts)
 	// client certificate
 	case opt.TenantID != "" && opt.ClientID != "" && opt.ClientCert != "":
 		certs, key, certErr := azidentity.ParseCertificates([]byte(opt.ClientCert), nil)
@@ -445,7 +450,7 @@ func getAZService(opt *Options, storageHostname string) (*azblob.Client, error) 
 			return nil, errors.Wrap(credErr, "unable to initialize client cert credential")
 		}
 
-		service, serviceErr = azblob.NewClient(fmt.Sprintf("https://%s/", storageHostname), cred, nil)
+		service, serviceErr = azblob.NewClient(storageURL.String(), cred, clOpts)
 	default:
 		return nil, errors.New("one of the storage key, SAS token, client secret or client certificate must be provided")
 	}
