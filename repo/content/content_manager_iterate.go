@@ -237,20 +237,29 @@ func (bm *WriteManager) IterateUnreferencedPacks(ctx context.Context, blobPrefix
 	defer usedPacks.Close(ctx)
 
 	bm.log.Debug("determining blobs in use")
-	// find packs in use
-	if err := bm.IteratePacks(
-		ctx,
-		IteratePackOptions{
-			Prefixes:                           blobPrefixes,
-			IncludePacksWithOnlyDeletedContent: true,
-		},
-		func(pi PackInfo) error {
-			if pi.ContentCount > 0 {
-				usedPacks.Put(ctx, []byte(pi.PackID))
-			}
+
+	itPackOpts := IteratePackOptions{
+		Prefixes:                           blobPrefixes,
+		IncludePacksWithOnlyDeletedContent: true,
+	}
+
+	cItCb := func(ci Info) error {
+		if !itPackOpts.matchesBlob(ci.PackBlobID) { // filter blobs by prefix
 			return nil
-		}); err != nil {
-		return errors.Wrap(err, "error iterating packs")
+		}
+
+		usedPacks.Put(ctx, []byte(ci.PackBlobID))
+
+		return nil
+	}
+
+	cItOpts := IterateOptions{
+		IncludeDeleted: true,
+	}
+
+	// find packs in use
+	if err := bm.IterateContents(ctx, cItOpts, cItCb); err != nil {
+		return errors.Wrap(err, "error iterating contents to find packs in use")
 	}
 
 	unusedCount := new(int32)
