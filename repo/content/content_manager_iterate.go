@@ -227,13 +227,8 @@ func (bm *WriteManager) IterateUnreferencedPacks(ctx context.Context, blobPrefix
 
 	bm.log.Debug("determining blobs in use")
 
-	itPackOpts := IteratePackOptions{
-		Prefixes:                           blobPrefixes,
-		IncludePacksWithOnlyDeletedContent: true,
-	}
-
 	cItCb := func(ci Info) error {
-		if !itPackOpts.matchesBlob(ci.PackBlobID) { // filter blobs by prefix
+		if !blob.MatchesAnyPrefix(ci.PackBlobID, blobPrefixes) { // filter blobs by prefix
 			return nil
 		}
 
