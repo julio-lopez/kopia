@@ -3,7 +3,6 @@ package content
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -164,17 +163,7 @@ type IteratePackOptions struct {
 }
 
 func (o *IteratePackOptions) matchesBlob(id blob.ID) bool {
-	if len(o.Prefixes) == 0 {
-		return true
-	}
-
-	for _, p := range o.Prefixes {
-		if strings.HasPrefix(string(id), string(p)) {
-			return true
-		}
-	}
-
-	return false
+	return blob.MatchesAnyPrefix(id, o.Prefixes)
 }
 
 // PackInfo contains the data for a pack.

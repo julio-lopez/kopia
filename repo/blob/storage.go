@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -416,4 +417,19 @@ func ReadBlobMap(ctx context.Context, br Reader) (map[ID]Metadata, error) {
 	log(ctx).Infof("Listed %v blobs.", len(blobMap))
 
 	return blobMap, nil
+}
+
+// MatchesAnyPrefix returns whether id has any of the given prefixes
+func MatchesAnyPrefix(id ID, prefixes []ID) bool {
+	if len(prefixes) == 0 {
+		return true
+	}
+
+	for _, p := range prefixes {
+		if strings.HasPrefix(string(id), string(p)) {
+			return true
+		}
+	}
+
+	return false
 }
