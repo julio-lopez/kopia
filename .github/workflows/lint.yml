@@ -1,0 +1,25 @@
+name: Static Checks
+on:
+  pull_request:
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  vulncheck:
+    name: Vulncheck
+    runs-on: ubuntu-latest
+    steps:
+    - id: govulncheck
+      uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+      with:
+        check-latest: true
+        go-version-input: '1.24.7'
+        output-file: govulncheck.sarif
+        output-format: sarif
+        repo-checkout: true
+    -
+      id: govulncheck-results
+      name: "Upload govulncheck results to dashboard"
+      uses: github/codeql-action/upload-sarif@2d92b76c45b91eb80fc44c74ce3fce0ee94e8f9d # v3.29.5
+      with:
+        sarif_file: govulncheck.sarif
