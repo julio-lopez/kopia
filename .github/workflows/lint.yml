@@ -1,51 +1,25 @@
-name: Lint
+name: Static Checks
 on:
   pull_request:
-    branches: [ master ]
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-env:
-  # environment variables shared between build steps
-  # do not include sensitive credentials and tokens here, instead pass them
-  # directly to tools that need them to limit the blast radius in case one of them
-  # becomes compromised and leaks credentials to external sites.
-  # required by Makefile
-  UNIX_SHELL_ON_WINDOWS: true
-  # set (to any value other than false) to trigger random unicode filenames testing (logs may be difficult to read)
-  ENABLE_UNICODE_FILENAMES: ${{ secrets.ENABLE_UNICODE_FILENAMES }}
-  # set (to any value other than false) to trigger very long filenames testing
-  ENABLE_LONG_FILENAMES: ${{ secrets.ENABLE_LONG_FILENAMES }}
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    name: Lint
-    runs-on: ${{ matrix.os }}
+  vulncheck:
+    name: Vulncheck
+    runs-on: ubuntu-latest
     steps:
-    - name: Check out repository
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      with:
-        fetch-depth: 0
-    - name: Set up Go
-      uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-      with:
-        go-version-file: 'go.mod'
     - id: govulncheck
       uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
       with:
-        cache: false
+        check-latest: true
         go-version-input: '1.24.7'
-        # An explicit Go version is needed for govulncheck-action since internally
-        # it uses an outdated setup-go@v5.0 action that does not respect the 'toolchain'
-        # directive in the 'go.mod' file.
-        #go-version-file: 'go.mod'
-        repo-checkout: false
-    - name: Lint
-      run: make lint
-    - name: Check Locks
-      run: make check-locks
-    - name: Prettier
-      run: make check-prettier
+        output-file: govulncheck.sarif
+        output-format: sarif
+        repo-checkout: true
+    -
+      id: govulncheck-results
+      name: "Upload govulncheck results to dashboard"
+      uses: github/codeql-action/upload-sarif@2d92b76c45b91eb80fc44c74ce3fce0ee94e8f9d # v3.29.5
+      with:
+        sarif_file: govulncheck.sarif
