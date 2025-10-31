@@ -8,13 +8,14 @@ import (
 
 	"github.com/edsrzf/mmap-go"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 // mmapFile opens the named file and mmaps it.
 // Unix semantics: Close the file descriptor immediately after a successful mmap so the
 // process does not retain FDs for all mapped index files. The mapping remains valid until
 // Unmap is called.
-func (c *diskCommittedContentIndexCache) mmapFile(_ context.Context, filename string) (mmap.MMap, func() error, error) {
+func (c *diskCommittedContentIndexCache) mmapFile(ctx context.Context, filename string) (mmap.MMap, func() error, error) {
 	f, err := os.Open(filename) //nolint:gosec
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to open file despite retries")
@@ -24,6 +25,10 @@ func (c *diskCommittedContentIndexCache) mmapFile(_ context.Context, filename st
 	if err != nil {
 		_ = f.Close()
 		return nil, nil, errors.Wrap(err, "mmap error")
+	}
+
+	if err := unix.Madvise(mm, unix.MADV_RANDOM); err != nil {
+		log(ctx).Infof("unable to set MADV_RANDOM for file %q: %s", filename, err)
 	}
 
 	// On Unix, it's safe to close the FD now; the mapping remains valid.
