@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kopia/kopia/internal/testlogging"
 )
 
 func TestParseSnapListAllExeTest(t *testing.T) {
@@ -18,7 +20,7 @@ func TestParseSnapListAllExeTest(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ctx := t.Context()
+	ctx := testlogging.Context(t)
 
 	err = ks.ConnectOrCreateFilesystem(ctx, repoDir)
 	require.NoError(t, err)

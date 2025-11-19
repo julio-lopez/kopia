@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kopia/kopia/internal/testlogging"
 )
 
 func TestKopiaRunner(t *testing.T) {
@@ -63,7 +65,7 @@ func TestKopiaRunner(t *testing.T) {
 
 			t.Cleanup(runner.Cleanup)
 
-			_, _, err = runner.Run(t.Context(), tt.args...)
+			_, _, err = runner.Run(testlogging.Context(t), tt.args...)
 			if tt.expRunErr {
 				require.Error(t, err, "expected Run error")
 

@@ -5,7 +5,6 @@ package recovery
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"log"
 	"os"
@@ -70,7 +69,7 @@ func TestSnapshotFix(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	ctx := context.Background()
+	ctx := testlogging.Context(t)
 	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
@@ -150,7 +149,7 @@ func TestSnapshotFixInvalidFiles(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	ctx := context.Background()
+	ctx := testlogging.Context(t)
 	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
@@ -234,7 +233,7 @@ func TestConsistencyWhenKill9AfterModify(t *testing.T) {
 
 	t.Logf("Verify snapshot corruption:")
 	// verify snapshot corruption
-	ctx := context.Background()
+	ctx := testlogging.Context(t)
 	err = bm.VerifySnapshot(ctx)
 	require.NoError(t, err)
 
@@ -298,7 +297,7 @@ func CompareDirs(t *testing.T, source, destination string) {
 
 	var buf bytes.Buffer
 
-	ctx := context.Background()
+	ctx := testlogging.Context(t)
 
 	const statsOnly = false
 
