@@ -70,7 +70,8 @@ func TestSnapshotFix(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	err = bm.DeleteBlob("")
+	ctx := context.Background()
+	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
 		t.FailNow()
@@ -82,24 +83,24 @@ func TestSnapshotFix(t *testing.T) {
 		t.FailNow()
 	}
 
-	_, err = bm.RunMaintenance()
+	_, err = bm.RunMaintenance(ctx)
 	require.NoError(t, err)
 
 	// try to restore a snapshot, this should error out
-	stdout, err := bm.RestoreGivenOrRandomSnapshot("", restoreDir)
+	stdout, err := bm.RestoreGivenOrRandomSnapshot(ctx, "", restoreDir)
 	require.Error(t, err)
 
 	// extract out object ID needed to be used in snapshot fix command
 	blobID := getBlobIDToBeDeleted(stdout)
 
-	stdout, err = bm.SnapshotFixRemoveFilesByBlobID(blobID)
+	stdout, err = bm.SnapshotFixRemoveFilesByBlobID(ctx, blobID)
 	if err != nil {
 		log.Println("Error repairing the kopia repository:", stdout, err)
 		t.FailNow()
 	}
 
 	// restore a random snapshot
-	_, err = bm.RestoreGivenOrRandomSnapshot("", restoreDir)
+	_, err = bm.RestoreGivenOrRandomSnapshot(ctx, "", restoreDir)
 	require.NoError(t, err)
 }
 
@@ -149,7 +150,8 @@ func TestSnapshotFixInvalidFiles(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	err = bm.DeleteBlob("")
+	ctx := context.Background()
+	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
 		t.FailNow()
@@ -162,18 +164,18 @@ func TestSnapshotFixInvalidFiles(t *testing.T) {
 	}
 
 	// try to restore a snapshot, this should error out
-	_, err = bm.RestoreGivenOrRandomSnapshot("", restoreDir)
+	_, err = bm.RestoreGivenOrRandomSnapshot(ctx, "", restoreDir)
 	require.Error(t, err)
 
 	// fix all the invalid files
-	stdout, err := bm.SnapshotFixInvalidFiles("--verify-files-percent=100")
+	stdout, err := bm.SnapshotFixInvalidFiles(ctx, "--verify-files-percent=100")
 	if err != nil {
 		log.Println("Error repairing the kopia repository:", stdout, err)
 		t.FailNow()
 	}
 
 	// restore a random snapshot
-	_, err = bm.RestoreGivenOrRandomSnapshot("", restoreDir)
+	_, err = bm.RestoreGivenOrRandomSnapshot(ctx, "", restoreDir)
 	require.NoError(t, err)
 }
 
@@ -232,7 +234,8 @@ func TestConsistencyWhenKill9AfterModify(t *testing.T) {
 
 	t.Logf("Verify snapshot corruption:")
 	// verify snapshot corruption
-	err = bm.VerifySnapshot()
+	ctx := context.Background()
+	err = bm.VerifySnapshot(ctx)
 	require.NoError(t, err)
 
 	// Create a temporary dir to restore a snapshot
@@ -240,7 +243,7 @@ func TestConsistencyWhenKill9AfterModify(t *testing.T) {
 	require.NotEmpty(t, restoreDir, "TempDir() did not generate a valid dir")
 
 	// try to restore a snapshot without any error messages.
-	stdout, err := bm.RestoreGivenOrRandomSnapshot("", restoreDir)
+	stdout, err := bm.RestoreGivenOrRandomSnapshot(ctx, "", restoreDir)
 	require.NoError(t, err)
 
 	t.Log(stdout)

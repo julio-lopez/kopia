@@ -143,14 +143,15 @@ func (th *TestHarness) getSnapshotter() bool {
 
 	th.snapshotter = s
 
-	if err = s.ConnectOrCreateRepo(th.dataRepoPath); err != nil {
+	ctx := context.Background()
+	if err = s.ConnectOrCreateRepo(ctx, th.dataRepoPath); err != nil {
 		log.Println("Error initializing kopia Snapshotter:", err)
 
 		return false
 	}
 
 	// Set size limits for content cache and metadata cache for repository under test.
-	if err = s.setCacheSizeLimits(contentCacheLimitMB, metadataCacheLimitMB); err != nil {
+	if err = s.setCacheSizeLimits(ctx, contentCacheLimitMB, metadataCacheLimitMB); err != nil {
 		log.Println("Error setting hard cache size limits for kopia snapshotter:", err)
 
 		return false
@@ -311,7 +312,7 @@ func (th *TestHarness) GetDirsToLog(ctx context.Context) []string {
 		th.baseDirPath,                                    // engine-data dir
 	)
 
-	cacheDir, _, err := th.snapshotter.GetCacheDirInfo()
+	cacheDir, _, err := th.snapshotter.GetCacheDirInfo(ctx)
 	if err == nil {
 		dirList = append(dirList, cacheDir) // cache dir for repo under test
 	}

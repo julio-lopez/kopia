@@ -56,15 +56,16 @@ func TestMain(m *testing.M) {
 	if os.Getenv("UPGRADE_REPOSITORY_FORMAT_VERSION") == "ON" {
 		log.Print("Upgrading the repository.")
 
-		rs, err := th.snapshotter.GetRepositoryStatus()
+		ctx := context.Background()
+		rs, err := th.snapshotter.GetRepositoryStatus(ctx)
 		exitOnError("failed to get repository status before upgrade", err)
 
 		prev := rs.ContentFormat.Version
 
 		log.Println("Old repository format:", prev)
-		th.snapshotter.UpgradeRepository()
+		th.snapshotter.UpgradeRepository(ctx)
 
-		rs, err = th.snapshotter.GetRepositoryStatus()
+		rs, err = th.snapshotter.GetRepositoryStatus(ctx)
 		exitOnError("failed to get repository status after upgrade", err)
 
 		curr := rs.ContentFormat.Version
@@ -163,7 +164,8 @@ func (th *kopiaRobustnessTestHarness) getSnapshotter() bool {
 
 	th.snapshotter = ks
 
-	if err = ks.ConnectOrCreateRepo(th.dataRepoPath); err != nil {
+	ctx := context.Background()
+	if err = ks.ConnectOrCreateRepo(ctx, th.dataRepoPath); err != nil {
 		log.Println("Error initializing kopia Snapshotter:", err)
 		return false
 	}
