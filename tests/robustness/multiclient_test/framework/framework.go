@@ -15,23 +15,23 @@ import (
 // methods for handling client connections to a server and cleanup.
 type ClientSnapshotter interface {
 	robustness.Snapshotter
-	ConnectClient(fingerprint, user string) error
-	DisconnectClient(user string)
+	ConnectClient(ctx context.Context, fingerprint, user string) error
+	DisconnectClient(ctx context.Context, user string)
 	Cleanup()
 }
 
 // Server is an interface for a repository server.
 type Server interface {
 	// Initialize and cleanup the server
-	ConnectOrCreateRepo(repoPath string) error
+	ConnectOrCreateRepo(ctx context.Context, repoPath string) error
 	Cleanup()
 
 	// Handle client authorization
-	AuthorizeClient(user string) error
-	RemoveClient(user string)
+	AuthorizeClient(ctx context.Context, user string) error
+	RemoveClient(ctx context.Context, user string)
 
 	// Run commands directly on the server repository
-	Run(args ...string) (stdout, stderr string, err error)
+	Run(ctx context.Context, args ...string) (stdout, stderr string, err error)
 	RunGC(ctx context.Context, opts map[string]string) error
 
 	// Get information from the server

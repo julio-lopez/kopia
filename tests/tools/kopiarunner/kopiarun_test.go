@@ -63,7 +63,7 @@ func TestKopiaRunner(t *testing.T) {
 
 			t.Cleanup(runner.Cleanup)
 
-			_, _, err = runner.Run(tt.args...)
+			_, _, err = runner.Run(t.Context(), tt.args...)
 			if tt.expRunErr {
 				require.Error(t, err, "expected Run error")
 

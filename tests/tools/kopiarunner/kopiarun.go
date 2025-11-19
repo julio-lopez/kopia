@@ -61,12 +61,11 @@ func (kr *Runner) Cleanup() {
 }
 
 // Run will execute the kopia command with the given args.
-func (kr *Runner) Run(args ...string) (stdout, stderr string, err error) {
+func (kr *Runner) Run(ctx context.Context, args ...string) (stdout, stderr string, err error) {
 	argsStr := strings.Join(args, " ")
 	log.Printf("running '%s %v'", kr.Exe, argsStr)
 
 	cmdArgs := append(append([]string(nil), kr.fixedArgs...), args...)
-	ctx := context.Background()
 	c := exec.CommandContext(ctx, kr.Exe, cmdArgs...)
 	c.Env = append(os.Environ(), kr.environment...)
 

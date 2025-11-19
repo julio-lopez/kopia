@@ -62,20 +62,20 @@ func NewMultiClientSnapshotter(baseDirPath string, f newClientFn) (*MultiClientS
 // ConnectOrCreateRepo makes the MultiClientSnapshotter ready for use. It will
 // connect to an existing repository if possible or create a new one, and
 // start a repository server.
-func (mcs *MultiClientSnapshotter) ConnectOrCreateRepo(repoPath string) error {
-	if err := mcs.server.ConnectOrCreateRepo(repoPath); err != nil {
+func (mcs *MultiClientSnapshotter) ConnectOrCreateRepo(ctx context.Context, repoPath string) error {
+	if err := mcs.server.ConnectOrCreateRepo(ctx, repoPath); err != nil {
 		return err
 	}
 
-	_, _, err := mcs.server.Run("policy", "set", "--global", "--keep-latest", strconv.Itoa(1<<31-1), "--compression", "s2-default")
+	_, _, err := mcs.server.Run(ctx, "policy", "set", "--global", "--keep-latest", strconv.Itoa(1<<31-1), "--compression", "s2-default")
 
 	return err
 }
 
 // setCacheSizeLimits sets hard size limits for the content and metadata caches
 // on an already connected repository.
-func (mcs *MultiClientSnapshotter) setCacheSizeLimits(contentLimitSizeMB, metadataLimitSizeMB int) error {
-	_, _, err := mcs.server.Run("cache", "set",
+func (mcs *MultiClientSnapshotter) setCacheSizeLimits(ctx context.Context, contentLimitSizeMB, metadataLimitSizeMB int) error {
+	_, _, err := mcs.server.Run(ctx, "cache", "set",
 		metadataCacheLimitMBFlag, strconv.Itoa(metadataLimitSizeMB),
 		contentCacheLimitMBFlag, strconv.Itoa(contentLimitSizeMB))
 
@@ -148,10 +148,11 @@ func (mcs *MultiClientSnapshotter) ListSnapshots(ctx context.Context) ([]string,
 // from the server, removes the client from the server's user list, and removes
 // the ClientSnapshotter from MultiClientSnapshotter.
 func (mcs *MultiClientSnapshotter) Cleanup() {
+	ctx := context.Background()
 	for clientID, s := range mcs.clients {
-		s.DisconnectClient(clientID)
+		s.DisconnectClient(ctx, clientID)
 		s.Cleanup()
-		mcs.server.RemoveClient(clientID)
+		mcs.server.RemoveClient(ctx, clientID)
 
 		delete(mcs.clients, clientID)
 	}
@@ -179,9 +180,9 @@ func (mcs *MultiClientSnapshotter) CleanupClient(ctx context.Context) {
 		return
 	}
 
-	s.DisconnectClient(c.ID)
+	s.DisconnectClient(ctx, c.ID)
 	s.Cleanup()
-	mcs.server.RemoveClient(c.ID)
+	mcs.server.RemoveClient(ctx, c.ID)
 }
 
 // createOrGetSnapshotter gets a client's Snapshotter from the given context if
@@ -217,14 +218,14 @@ func (mcs *MultiClientSnapshotter) createOrGetSnapshotter(ctx context.Context) (
 
 	// Register client with server and create connection
 	mcs.mu.Lock()
-	err = mcs.server.AuthorizeClient(c.ID)
+	err = mcs.server.AuthorizeClient(ctx, c.ID)
 	mcs.mu.Unlock()
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err := cs.ConnectClient(mcs.server.ServerFingerprint(), c.ID); err != nil {
+	if err := cs.ConnectClient(ctx, mcs.server.ServerFingerprint(), c.ID); err != nil {
 		return nil, err
 	}
 
@@ -239,8 +240,8 @@ func (mcs *MultiClientSnapshotter) createOrGetSnapshotter(ctx context.Context) (
 
 // GetCacheDirInfo runs cache info command to get cache dir path for
 // the repository.
-func (mcs *MultiClientSnapshotter) GetCacheDirInfo() (stdout, stderr string, err error) {
-	stdout, stderr, err = mcs.server.Run("cache", "info", "--path")
+func (mcs *MultiClientSnapshotter) GetCacheDirInfo(ctx context.Context) (stdout, stderr string, err error) {
+	stdout, stderr, err = mcs.server.Run(ctx, "cache", "info", "--path")
 	if err == nil {
 		// The current output of the cache info command contains a new line
 		// at the end of the cache directory path.
