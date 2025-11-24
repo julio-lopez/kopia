@@ -10,9 +10,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kopia/kopia/internal/blobparam"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/impossible"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/format"
@@ -30,8 +30,8 @@ type ExtendBlobRetentionTimeOptions struct {
 
 // extendBlobRetentionTime extends the retention time of all relevant blobs managed by storage engine with Object Locking enabled.
 func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWriter, opt ExtendBlobRetentionTimeOptions) (*maintenancestats.ExtendBlobRetentionStats, error) {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:blob-retain", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:blob-retain", repotracing.RandomSpanID()))
 	log := rep.LogManager().NewLogger("maintenance-blob-retain")
 
 	blobCfg, err := rep.FormatManager().BlobCfgBlob(ctx)
@@ -41,7 +41,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 
 	if !blobCfg.IsRetentionEnabled() {
 		// Blob retention is disabled
-		contentlog.Log(ctx, log, "Object lock retention is disabled.")
+		repotracing.Log(ctx, log, "Object lock retention is disabled.")
 
 		return nil, nil
 	}
@@ -68,7 +68,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 		wg.Go(func() error {
 			for bm := range extend {
 				if err1 := rep.BlobStorage().ExtendBlobRetention(ctx, bm.BlobID, extendOpts); err1 != nil {
-					contentlog.Log2(ctx, log,
+					repotracing.Log2(ctx, log,
 						"Failed to extend blob",
 						blobparam.BlobID("blobID", bm.BlobID),
 						logparam.Error("error", err1))
@@ -79,7 +79,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 				}
 
 				if currentCount := extendedCount.Add(1); currentCount%100 == 0 {
-					contentlog.Log1(ctx, log, "extended blobs", logparam.UInt32("count", currentCount))
+					repotracing.Log1(ctx, log, "extended blobs", logparam.UInt32("count", currentCount))
 				}
 			}
 
@@ -88,7 +88,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 	}
 
 	// iterate all relevant (active, extendable) blobs and count them + optionally send to the channel to be extended
-	contentlog.Log(ctx, log, "Extending retention time for blobs...")
+	repotracing.Log(ctx, log, "Extending retention time for blobs...")
 
 	err = blob.IterateAllPrefixesInParallel(ctx, opt.Parallel, rep.BlobStorage(), repo.GetLockingStoragePrefixes(), func(bm blob.Metadata) error {
 		extend <- bm
@@ -100,7 +100,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 
 	close(extend)
 
-	contentlog.Log1(ctx, log, "Found blobs to extend", logparam.UInt32("count", toExtend.Load()))
+	repotracing.Log1(ctx, log, "Found blobs to extend", logparam.UInt32("count", toExtend.Load()))
 
 	errWait := wg.Wait() // wait for all extend workers to finish.
 	impossible.PanicOnError(errWait)
@@ -119,7 +119,7 @@ func extendBlobRetentionTime(ctx context.Context, rep repo.DirectRepositoryWrite
 		RetentionPeriod:   extendOpts.RetentionPeriod.String(),
 	}
 
-	contentlog.Log1(ctx, log, "Extended retention time for blobs", result)
+	repotracing.Log1(ctx, log, "Extended retention time for blobs", result)
 
 	return result, nil
 }

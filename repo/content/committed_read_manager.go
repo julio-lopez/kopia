@@ -13,14 +13,14 @@ import (
 	"github.com/kopia/kopia/internal/cache"
 	"github.com/kopia/kopia/internal/cacheprot"
 	"github.com/kopia/kopia/internal/clock"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/epoch"
 	"github.com/kopia/kopia/internal/gather"
 	"github.com/kopia/kopia/internal/listcache"
 	"github.com/kopia/kopia/internal/metrics"
 	"github.com/kopia/kopia/internal/ownwrites"
 	"github.com/kopia/kopia/internal/repodiag"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/timetrack"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/filesystem"
@@ -106,7 +106,7 @@ type SharedManager struct {
 	paddingUnit             int
 
 	// logger where logs should be written
-	log *contentlog.Logger
+	log *repotracing.Logger
 
 	// logger associated with the context that opened the repository.
 	repoLogManager *repodiag.LogManager
@@ -145,17 +145,17 @@ func (sm *SharedManager) readPackFileLocalIndex(ctx context.Context, packFile bl
 
 	if packFileLength >= indexRecoverPostambleSize {
 		if err = sm.attemptReadPackFileLocalIndex(ctx, packFile, packFileLength-indexRecoverPostambleSize, indexRecoverPostambleSize, output); err == nil {
-			contentlog.Log2(ctx, sm.log, "recovered index bytes from blob using optimized method", logparam.Int("length", output.Length()), blobparam.BlobID("packFile", packFile))
+			repotracing.Log2(ctx, sm.log, "recovered index bytes from blob using optimized method", logparam.Int("length", output.Length()), blobparam.BlobID("packFile", packFile))
 			return nil
 		}
 
-		contentlog.Log1(ctx, sm.log,
+		repotracing.Log1(ctx, sm.log,
 			"unable to recover using optimized method",
 			logparam.Error("err", err))
 	}
 
 	if err = sm.attemptReadPackFileLocalIndex(ctx, packFile, 0, -1, output); err == nil {
-		contentlog.Log2(ctx, sm.log,
+		repotracing.Log2(ctx, sm.log,
 			"recovered index bytes from blob using full blob read",
 			logparam.Int("length", output.Length()),
 			blobparam.BlobID("packFile", packFile))
@@ -209,13 +209,13 @@ func (sm *SharedManager) attemptReadPackFileLocalIndex(ctx context.Context, pack
 
 // +checklocks:sm.indexesLock
 func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
-	ctx0 := contentlog.WithParams(ctx,
-		logparam.String("span:loadindex", contentlog.RandomSpanID()))
+	ctx0 := repotracing.WithParams(ctx,
+		logparam.String("span:loadindex", repotracing.RandomSpanID()))
 
 	nextSleepTime := 100 * time.Millisecond //nolint:mnd
 
 	for i := range indexLoadAttempts {
-		ctx := contentlog.WithParams(ctx0,
+		ctx := repotracing.WithParams(ctx0,
 			logparam.Int("loadAttempt", i))
 
 		ibm, err0 := sm.indexBlobManager(ctx)
@@ -233,7 +233,7 @@ func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
 			flushTimer := timetrack.StartTimer()
 			flushErr := sm.st.FlushCaches(ctx)
 
-			contentlog.Log2(ctx, sm.log, "flushCaches",
+			repotracing.Log2(ctx, sm.log, "flushCaches",
 				logparam.Duration("latency", flushTimer.Elapsed()),
 				logparam.Error("error", flushErr))
 
@@ -261,7 +261,7 @@ func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
 			if len(indexBlobs) > indexBlobCompactionWarningThreshold {
 				log(ctx).Errorf("Found too many index blobs (%v), this may result in degraded performance.\n\nPlease ensure periodic repository maintenance is enabled or run 'kopia maintenance'.", len(indexBlobs))
 
-				contentlog.Log1(ctx, sm.log, "Found too many index blobs", logparam.Int("len", len(indexBlobs)))
+				repotracing.Log1(ctx, sm.log, "Found too many index blobs", logparam.Int("len", len(indexBlobs)))
 			}
 
 			sm.refreshIndexesAfter = sm.timeNow().Add(indexRefreshFrequency)
@@ -428,7 +428,7 @@ func newCacheBackingStorage(ctx context.Context, caching *CachingOptions, subdir
 	}, false)
 }
 
-func (sm *SharedManager) namedLogger(n string) *contentlog.Logger {
+func (sm *SharedManager) namedLogger(n string) *repotracing.Logger {
 	return sm.repoLogManager.NewLogger(n)
 }
 

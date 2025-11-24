@@ -2,7 +2,7 @@
 package blobparam
 
 import (
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 	"github.com/kopia/kopia/repo/blob"
 )
 
@@ -11,7 +11,7 @@ type blobMetadataListParam struct {
 	list []blob.Metadata
 }
 
-func (v blobMetadataListParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v blobMetadataListParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginListField(v.key)
 
 	for _, bm := range v.list {
@@ -37,7 +37,7 @@ type blobIDParam struct {
 	val blob.ID
 }
 
-func (v blobIDParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v blobIDParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.StringField(v.key, string(v.val))
 }
 
@@ -53,7 +53,7 @@ type blobIDListParam struct {
 	list []blob.ID
 }
 
-func (v blobIDListParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v blobIDListParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginListField(v.key)
 
 	for _, blobID := range v.list {
@@ -75,7 +75,7 @@ type blobMetadataParam struct {
 	val blob.Metadata
 }
 
-func (v blobMetadataParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v blobMetadataParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(v.key)
 	jw.StringField("blobID", string(v.val.BlobID))
 	jw.Int64Field("l", v.val.Length)

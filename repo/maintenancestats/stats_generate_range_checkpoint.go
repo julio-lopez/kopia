@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const generateRangeCheckpointStatsKind = "generateRangeCheckpointStats"
@@ -15,7 +15,7 @@ type GenerateRangeCheckpointStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (gs *GenerateRangeCheckpointStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (gs *GenerateRangeCheckpointStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(gs.Kind())
 	jw.IntField("rangeMinEpoch", gs.RangeMinEpoch)
 	jw.IntField("rangeMaxEpoch", gs.RangeMaxEpoch)

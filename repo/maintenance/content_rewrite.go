@@ -11,9 +11,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/internal/blobparam"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/contentparam"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/stats"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/blob"
@@ -46,8 +46,8 @@ type contentInfoOrError struct {
 //
 //nolint:funlen
 func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *RewriteContentsOptions, safety SafetyParameters) (*maintenancestats.RewriteContentsStats, error) {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:content-rewrite", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:content-rewrite", repotracing.RandomSpanID()))
 
 	log := rep.LogManager().NewLogger("maintenance-content-rewrite")
 
@@ -56,9 +56,9 @@ func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *
 	}
 
 	if opt.ShortPacks {
-		contentlog.Log(ctx, log, "Rewriting contents from short packs...")
+		repotracing.Log(ctx, log, "Rewriting contents from short packs...")
 	} else {
-		contentlog.Log(ctx, log, "Rewriting contents...")
+		repotracing.Log(ctx, log, "Rewriting contents...")
 	}
 
 	cnt := getContentToRewrite(ctx, rep, opt)
@@ -85,7 +85,7 @@ func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *
 
 				age := rep.Time().Sub(c.Timestamp())
 				if age < safety.RewriteMinAge {
-					contentlog.Log5(ctx, log,
+					repotracing.Log5(ctx, log,
 						"Not rewriting content",
 						contentparam.ContentID("contentID", c.ContentID),
 						logparam.UInt32("bytes", c.PackedLength),
@@ -98,7 +98,7 @@ func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *
 					continue
 				}
 
-				contentlog.Log5(ctx, log,
+				repotracing.Log5(ctx, log,
 					"Rewriting content",
 					contentparam.ContentID("contentID", c.ContentID),
 					logparam.UInt32("bytes", c.PackedLength),
@@ -116,12 +116,12 @@ func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *
 					// provide option to ignore failures when rewriting deleted contents during maintenance
 					// this is for advanced use only
 					if os.Getenv("KOPIA_IGNORE_MAINTENANCE_REWRITE_ERROR") != "" && c.Deleted {
-						contentlog.Log2(ctx, log,
+						repotracing.Log2(ctx, log,
 							"IGNORED: unable to rewrite deleted content",
 							contentparam.ContentID("contentID", c.ContentID),
 							logparam.Error("error", err))
 					} else {
-						contentlog.Log2(ctx, log,
+						repotracing.Log2(ctx, log,
 							"unable to rewrite content",
 							contentparam.ContentID("contentID", c.ContentID),
 							logparam.Error("error", err))
@@ -150,7 +150,7 @@ func RewriteContents(ctx context.Context, rep repo.DirectRepositoryWriter, opt *
 		RetainedContentSize:   retainedBytes,
 	}
 
-	contentlog.Log1(ctx, log, "Rewritten contents", result)
+	repotracing.Log1(ctx, log, "Rewritten contents", result)
 
 	if failedCount.Load() == 0 {
 		if err := rep.ContentManager().Flush(ctx); err != nil {

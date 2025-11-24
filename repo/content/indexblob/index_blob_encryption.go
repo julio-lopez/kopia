@@ -8,9 +8,9 @@ import (
 	"github.com/kopia/kopia/internal/blobcrypto"
 	"github.com/kopia/kopia/internal/blobparam"
 	"github.com/kopia/kopia/internal/cache"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/timetrack"
 	"github.com/kopia/kopia/repo/blob"
 )
@@ -22,7 +22,7 @@ type Metadata struct {
 }
 
 // WriteValueTo writes the metadata to a JSON writer.
-func (m Metadata) WriteValueTo(jw *contentlog.JSONWriter) {
+func (m Metadata) WriteValueTo(jw *repotracing.JSONWriter) {
 	blobparam.BlobMetadata("metadata", m.Metadata).WriteValueTo(jw)
 	jw.BeginListField("superseded")
 
@@ -40,7 +40,7 @@ type metadataParam struct {
 	val Metadata
 }
 
-func (v metadataParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v metadataParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(v.key)
 	v.val.WriteValueTo(jw)
 	jw.EndObject()
@@ -58,7 +58,7 @@ type metadataListParam struct {
 	list []Metadata
 }
 
-func (v metadataListParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v metadataListParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginListField(v.key)
 
 	for _, bm := range v.list {
@@ -82,7 +82,7 @@ type EncryptionManager struct {
 	st             blob.Storage
 	crypter        blobcrypto.Crypter
 	indexBlobCache *cache.PersistentCache
-	log            *contentlog.Logger
+	log            *repotracing.Logger
 }
 
 // GetEncryptedBlob fetches and decrypts the contents of a given encrypted blob
@@ -115,7 +115,7 @@ func (m *EncryptionManager) EncryptAndWriteBlob(ctx context.Context, data gather
 
 	bm, err := blob.PutBlobAndGetMetadata(ctx, m.st, blobID, data2.Bytes(), blob.PutOptions{})
 
-	contentlog.Log5(ctx, m.log, "write-index-blob",
+	repotracing.Log5(ctx, m.log, "write-index-blob",
 		blobparam.BlobID("indexBlobID", blobID),
 		logparam.Int("len", data2.Length()),
 		logparam.Time("timestamp", bm.Timestamp),
@@ -130,7 +130,7 @@ func NewEncryptionManager(
 	st blob.Storage,
 	crypter blobcrypto.Crypter,
 	indexBlobCache *cache.PersistentCache,
-	log *contentlog.Logger,
+	log *repotracing.Logger,
 ) *EncryptionManager {
 	return &EncryptionManager{st, crypter, indexBlobCache, log}
 }

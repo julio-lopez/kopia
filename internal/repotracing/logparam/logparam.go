@@ -4,7 +4,7 @@ package logparam
 import (
 	"time"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 // String creates a string parameter.
@@ -75,7 +75,7 @@ type int64Param struct {
 	Value int64
 }
 
-func (v int64Param) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v int64Param) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.Int64Field(v.Key, v.Value)
 }
 
@@ -84,7 +84,7 @@ type uint64Param struct {
 	Value uint64
 }
 
-func (v uint64Param) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v uint64Param) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.UInt64Field(v.Key, v.Value)
 }
 
@@ -93,7 +93,7 @@ type timeParam struct {
 	Value time.Time
 }
 
-func (v timeParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v timeParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.TimeField(v.Key, v.Value)
 }
 
@@ -102,7 +102,7 @@ type boolParam struct {
 	Value bool
 }
 
-func (v boolParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v boolParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BoolField(v.Key, v.Value)
 }
 
@@ -111,7 +111,7 @@ type durationParam struct {
 	Value time.Duration
 }
 
-func (v durationParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v durationParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.Int64Field(v.Key, v.Value.Microseconds())
 }
 
@@ -120,7 +120,7 @@ type errorParam struct {
 	Value error
 }
 
-func (v errorParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v errorParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.ErrorField(v.Key, v.Value)
 }
 
@@ -129,6 +129,6 @@ type stringParam struct {
 	Value string
 }
 
-func (v stringParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (v stringParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.StringField(v.Key, v.Value)
 }

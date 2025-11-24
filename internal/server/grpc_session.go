@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kopia/kopia/internal/auth"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
 	"github.com/kopia/kopia/internal/grpcapi"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/notification"
 	"github.com/kopia/kopia/notification/notifydata"
 	"github.com/kopia/kopia/repo"
@@ -93,7 +93,7 @@ func (s *Server) Session(srv grpcapi.KopiaRepository_SessionServer) error {
 	}
 
 	log := dr.LogManager().NewLogger("grpc-session")
-	ctx = contentlog.WithParams(ctx, logparam.String("span:server-session", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx, logparam.String("span:server-session", repotracing.RandomSpanID()))
 
 	usernameAtHostname, err := s.authenticateGRPCSession(ctx, dr)
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *Server) Session(srv grpcapi.KopiaRepository_SessionServer) error {
 			case err := <-lastErr:
 				userLog(ctx).Errorf("error handling session request: %v", err)
 
-				contentlog.Log1(ctx, log,
+				repotracing.Log1(ctx, log,
 					"error handling session request",
 					logparam.Error("error", err))
 

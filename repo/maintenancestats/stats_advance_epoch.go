@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const advanceEpochStatsKind = "advanceEpochStats"
@@ -15,7 +15,7 @@ type AdvanceEpochStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (as *AdvanceEpochStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (as *AdvanceEpochStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(as.Kind())
 	jw.IntField("currentEpoch", as.CurrentEpoch)
 	jw.BoolField("wasAdvanced", as.WasAdvanced)

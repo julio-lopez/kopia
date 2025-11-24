@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/kopia/kopia/internal/clock"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo/blob"
 )
 
@@ -42,7 +42,7 @@ type LogManager struct {
 	mu             sync.Mutex
 	currentSegment *gather.WriteBuffer
 	startTime      int64
-	params         []contentlog.ParamWriter
+	params         []repotracing.ParamWriter
 	textWriter     io.Writer
 
 	nextChunkNumber atomic.Uint64
@@ -50,14 +50,14 @@ type LogManager struct {
 }
 
 // NewLogger creates new logger.
-func (m *LogManager) NewLogger(name string) *contentlog.Logger {
+func (m *LogManager) NewLogger(name string) *repotracing.Logger {
 	if m == nil {
 		return nil
 	}
 
-	return contentlog.NewLogger(
+	return repotracing.NewLogger(
 		m.outputEntry,
-		append(append([]contentlog.ParamWriter(nil), m.params...), logparam.String("n", name))...)
+		append(append([]repotracing.ParamWriter(nil), m.params...), logparam.String("n", name))...)
 }
 
 // Enable enables writing log blobs to repository.
@@ -147,7 +147,7 @@ func (m *LogManager) initNewBuffer() (flushBuffer *gather.WriteBuffer, flushBlob
 }
 
 // NewLogManager creates a new LogManager that will emit logs as repository blobs.
-func NewLogManager(ctx context.Context, w *BlobWriter, disableRepositoryLog bool, textWriter io.Writer, params ...contentlog.ParamWriter) *LogManager {
+func NewLogManager(ctx context.Context, w *BlobWriter, disableRepositoryLog bool, textWriter io.Writer, params ...repotracing.ParamWriter) *LogManager {
 	var rnd [2]byte
 
 	rand.Read(rnd[:]) //nolint:errcheck
