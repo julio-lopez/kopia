@@ -10,9 +10,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/internal/clock"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/epoch"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/content"
 	"github.com/kopia/kopia/repo/content/index"
@@ -153,8 +153,8 @@ func (e NotOwnedError) Error() string {
 // lock can be acquired. Lock is passed to the function, which ensures that every call to Run()
 // is within the exclusive context.
 func RunExclusive(ctx context.Context, rep repo.DirectRepositoryWriter, mode Mode, force bool, cb func(ctx context.Context, runParams RunParameters) error) error {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:maintenance", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:maintenance", repotracing.RandomSpanID()))
 
 	rep.DisableIndexRefresh()
 
@@ -308,26 +308,26 @@ func runQuickMaintenance(ctx context.Context, runParams RunParameters, safety Sa
 	}
 
 	// consolidate many smaller indexes into fewer larger ones.
-	if err := runTaskIndexCompactionQuick(contentlog.WithParams(ctx, logparam.String("span:index-compaction", contentlog.RandomSpanID())), runParams, s, safety); err != nil {
+	if err := runTaskIndexCompactionQuick(repotracing.WithParams(ctx, logparam.String("span:index-compaction", repotracing.RandomSpanID())), runParams, s, safety); err != nil {
 		return errors.Wrap(err, "error performing index compaction")
 	}
 
 	// clean up logs last
-	if err := runTaskCleanupLogs(contentlog.WithParams(ctx, logparam.String("span:cleanup-logs", contentlog.RandomSpanID())), runParams, s); err != nil {
+	if err := runTaskCleanupLogs(repotracing.WithParams(ctx, logparam.String("span:cleanup-logs", repotracing.RandomSpanID())), runParams, s); err != nil {
 		return errors.Wrap(err, "error cleaning up logs")
 	}
 
 	return nil
 }
 
-func notRewritingContents(ctx context.Context, log *contentlog.Logger) {
-	contentlog.Log(ctx, log, "Previous content rewrite has not been finalized yet, waiting until the next blob deletion.")
+func notRewritingContents(ctx context.Context, log *repotracing.Logger) {
+	repotracing.Log(ctx, log, "Previous content rewrite has not been finalized yet, waiting until the next blob deletion.")
 }
 
-func notDeletingOrphanedPacks(ctx context.Context, log *contentlog.Logger, s *Schedule, safety SafetyParameters) {
+func notDeletingOrphanedPacks(ctx context.Context, log *repotracing.Logger, s *Schedule, safety SafetyParameters) {
 	left := nextPackDeleteTime(s, safety).Sub(clock.Now()).Truncate(time.Second)
 
-	contentlog.Log1(ctx, log, "Skipping pack deletion because not enough time has passed yet", logparam.Duration("left", left))
+	repotracing.Log1(ctx, log, "Skipping pack deletion because not enough time has passed yet", logparam.Duration("left", left))
 }
 
 func runTaskCleanupLogs(ctx context.Context, runParams RunParameters, s *Schedule) error {
@@ -441,13 +441,13 @@ func runTaskDropDeletedContentsFull(ctx context.Context, runParams RunParameters
 	}
 
 	if safeDropTime.IsZero() {
-		contentlog.Log(ctx, log,
+		repotracing.Log(ctx, log,
 			"Not forgetting deleted contents yet since not enough time has passed since previous successful Snapshot GC. Will try again next time.")
 
 		return nil
 	}
 
-	contentlog.Log1(ctx, log, "Found safe time to drop indexes", logparam.Time("safeDropTime", safeDropTime))
+	repotracing.Log1(ctx, log, "Found safe time to drop indexes", logparam.Time("safeDropTime", safeDropTime))
 
 	return reportRunAndMaybeCheckContentIndex(ctx, runParams.rep, TaskDropDeletedContentsFull, s, func() (maintenancestats.Kind, error) {
 		return dropDeletedContents(ctx, runParams.rep, safeDropTime, safety)

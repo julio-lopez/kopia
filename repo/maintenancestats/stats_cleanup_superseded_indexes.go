@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const cleanupSupersededIndexesStatsKind = "cleanupSupersededIndexesStats"
@@ -17,7 +17,7 @@ type CleanupSupersededIndexesStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (cs *CleanupSupersededIndexesStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (cs *CleanupSupersededIndexesStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(cs.Kind())
 	jw.TimeField("maxReplacementTime", cs.MaxReplacementTime)
 	jw.IntField("deletedBlobCount", cs.DeletedBlobCount)

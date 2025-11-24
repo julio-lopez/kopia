@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const snapshotGCStatsKind = "snapshotGCStats"
@@ -25,7 +25,7 @@ type SnapshotGCStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (ss *SnapshotGCStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (ss *SnapshotGCStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(ss.Kind())
 	jw.UInt32Field("unreferencedContentCount", ss.UnreferencedContentCount)
 	jw.Int64Field("unreferencedContentSize", ss.UnreferencedContentSize)

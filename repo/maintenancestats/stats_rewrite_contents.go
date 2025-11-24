@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const rewriteContentsStatsKind = "rewriteContentsStats"
@@ -19,7 +19,7 @@ type RewriteContentsStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (rs *RewriteContentsStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (rs *RewriteContentsStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(rs.Kind())
 	jw.IntField("toRewriteContentCount", rs.ToRewriteContentCount)
 	jw.Int64Field("toRewriteContentSize", rs.ToRewriteContentSize)

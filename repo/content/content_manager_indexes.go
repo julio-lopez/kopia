@@ -6,9 +6,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/internal/blobcrypto"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/timetrack"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/content/index"
@@ -32,7 +32,7 @@ func (sm *SharedManager) Refresh(ctx context.Context) error {
 
 	err = sm.loadPackIndexesLocked(ctx)
 
-	contentlog.Log2(ctx, sm.log, "refreshIndexes",
+	repotracing.Log2(ctx, sm.log, "refreshIndexes",
 		logparam.Duration("latency", timer.Elapsed()),
 		logparam.Error("error", err))
 
@@ -46,7 +46,7 @@ func (sm *SharedManager) CompactIndexes(ctx context.Context, opt indexblob.Compa
 	sm.indexesLock.Lock()
 	defer sm.indexesLock.Unlock()
 
-	contentlog.Log4(ctx, sm.log, "CompactIndexes",
+	repotracing.Log4(ctx, sm.log, "CompactIndexes",
 		logparam.Bool("allIndexes", opt.AllIndexes),
 		logparam.Int64("maxSmallBlobs", int64(opt.MaxSmallBlobs)),
 		logparam.Time("dropDeletedBefore", opt.DropDeletedBefore),

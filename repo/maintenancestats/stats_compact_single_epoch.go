@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const compactSingleEpochStatsKind = "compactSingleEpochStats"
@@ -16,7 +16,7 @@ type CompactSingleEpochStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (cs *CompactSingleEpochStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (cs *CompactSingleEpochStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(cs.Kind())
 	jw.IntField("supersededIndexBlobCount", cs.SupersededIndexBlobCount)
 	jw.Int64Field("supersededIndexTotalSize", cs.SupersededIndexTotalSize)

@@ -1,4 +1,4 @@
-package contentlog
+package repotracing
 
 import (
 	"context"

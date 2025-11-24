@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const extendBlobRetentionStatsKind = "extendBlobRetentionStats"
@@ -16,7 +16,7 @@ type ExtendBlobRetentionStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (es *ExtendBlobRetentionStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (es *ExtendBlobRetentionStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(es.Kind())
 	jw.UInt32Field("toExtendBlobCount", es.ToExtendBlobCount)
 	jw.UInt32Field("extendedBlobCount", es.ExtendedBlobCount)

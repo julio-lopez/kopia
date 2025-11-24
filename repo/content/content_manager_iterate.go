@@ -11,8 +11,8 @@ import (
 
 	"github.com/kopia/kopia/internal/bigmap"
 	"github.com/kopia/kopia/internal/blobparam"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/content/index"
 )
@@ -234,7 +234,7 @@ func (bm *WriteManager) IterateUnreferencedPacks(ctx context.Context, blobPrefix
 
 	defer usedPacks.Close(ctx)
 
-	contentlog.Log(ctx, bm.log, "determining blobs in use")
+	repotracing.Log(ctx, bm.log, "determining blobs in use")
 	// find packs in use
 	if err := bm.IteratePacks(
 		ctx,
@@ -268,7 +268,7 @@ func (bm *WriteManager) IterateUnreferencedPacks(ctx context.Context, blobPrefix
 		}
 	}
 
-	contentlog.Log1(ctx, bm.log, "scanning prefixes",
+	repotracing.Log1(ctx, bm.log, "scanning prefixes",
 		blobparam.BlobIDList("prefixes", prefixes))
 
 	var unusedCount atomic.Int32
@@ -286,7 +286,7 @@ func (bm *WriteManager) IterateUnreferencedPacks(ctx context.Context, blobPrefix
 		return errors.Wrap(err, "error iterating blobs")
 	}
 
-	contentlog.Log1(ctx, bm.log, "found pack blobs not in use", logparam.Int("unusedCount", int(unusedCount.Load())))
+	repotracing.Log1(ctx, bm.log, "found pack blobs not in use", logparam.Int("unusedCount", int(unusedCount.Load())))
 
 	return nil
 }
