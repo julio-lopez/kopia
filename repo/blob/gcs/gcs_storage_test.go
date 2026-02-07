@@ -217,14 +217,18 @@ func TestValidateServiceAccountCredentials(t *testing.T) {
 			errText: "invalid private_key format",
 		},
 		{
-			name:    "invalid token_uri",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", "token_uri": "https://evil.com/token"}`,
+			name: "invalid token_uri",
+			json: `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n` +
+				`-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", ` +
+				`"token_uri": "https://evil.com/token"}`,
 			wantErr: true,
 			errText: "invalid token_uri",
 		},
 		{
-			name:    "invalid auth_uri",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", "auth_uri": "https://evil.com/auth"}`,
+			name: "invalid auth_uri",
+			json: `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n` +
+				`-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", ` +
+				`"auth_uri": "https://evil.com/auth"}`,
 			wantErr: true,
 			errText: "invalid auth_uri",
 		},
