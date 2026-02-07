@@ -3,9 +3,12 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	gcsclient "cloud.google.com/go/storage"
@@ -242,6 +245,76 @@ func (gcs *gcsStorage) toBlobID(blobName string) blob.ID {
 	return blob.ID(blobName[len(gcs.Prefix):])
 }
 
+// ServiceAccountCredential represents the structure of a Google service account JSON credential file.
+type ServiceAccountCredential struct {
+	Type                    string `json:"type"`
+	ProjectID               string `json:"project_id"`
+	PrivateKeyID            string `json:"private_key_id"`
+	PrivateKey              string `json:"private_key"`
+	ClientEmail             string `json:"client_email"`
+	ClientID                string `json:"client_id"`
+	AuthURI                 string `json:"auth_uri"`
+	TokenURI                string `json:"token_uri"`
+	AuthProviderX509CertURL string `json:"auth_provider_x509_cert_url"`
+	ClientX509CertURL       string `json:"client_x509_cert_url"`
+}
+
+// ValidateServiceAccountCredentials validates a service account credential JSON
+// according to Google Cloud security requirements for external credentials.
+func ValidateServiceAccountCredentials(credJSON []byte) error {
+	var cred ServiceAccountCredential
+
+	if err := json.Unmarshal(credJSON, &cred); err != nil {
+		return fmt.Errorf("failed to parse credential JSON: %w", err)
+	}
+
+	// Validate type field
+	if cred.Type != "service_account" {
+		return fmt.Errorf("invalid credential type: expected 'service_account', got '%s'", cred.Type) //nolint:err113
+	}
+
+	// Validate required fields are present
+	if cred.PrivateKeyID == "" {
+		return errors.New("missing required field: private_key_id")
+	}
+
+	if cred.PrivateKey == "" {
+		return errors.New("missing required field: private_key")
+	}
+
+	if cred.ClientEmail == "" {
+		return errors.New("missing required field: client_email")
+	}
+
+	if cred.ClientID == "" {
+		return errors.New("missing required field: client_id")
+	}
+
+	// Validate client_email format (should be a service account email)
+	if !strings.HasSuffix(cred.ClientEmail, ".gserviceaccount.com") {
+		return fmt.Errorf("invalid client_email format: expected service account email ending in '.gserviceaccount.com', got '%s'", cred.ClientEmail) //nolint:err113
+	}
+
+	// Validate private_key format (should start with BEGIN PRIVATE KEY)
+	if !strings.Contains(cred.PrivateKey, "BEGIN PRIVATE KEY") {
+		return errors.New("invalid private_key format: expected PEM-encoded private key")
+	}
+
+	// Validate token_uri is Google's endpoint
+	expectedTokenURI := "https://oauth2.googleapis.com/token" //nolint:gosec
+	if cred.TokenURI != "" && cred.TokenURI != expectedTokenURI {
+		return fmt.Errorf("invalid token_uri: expected '%s', got '%s'", expectedTokenURI, cred.TokenURI) //nolint:err113
+	}
+
+	// Validate auth_uri is Google's endpoint
+	expectedAuthURI := "https://accounts.google.com/o/oauth2/auth"
+	if cred.AuthURI != "" && cred.AuthURI != expectedAuthURI {
+		return fmt.Errorf("invalid auth_uri: expected '%s', got '%s'", expectedAuthURI, cred.AuthURI) //nolint:err113
+	}
+
+	return nil
+}
+
 // New creates new Google Cloud Storage-backed storage with specified options:
 //
 // - the 'BucketName' field is required and all other parameters are optional.
@@ -263,8 +336,23 @@ func New(ctx context.Context, opt *Options, isCreate bool) (blob.Storage, error)
 	clientOptions := []option.ClientOption{option.WithScopes(scope)}
 
 	if j := opt.ServiceAccountCredentialJSON; len(j) > 0 {
+		// Validate credentials before using them
+		if err := ValidateServiceAccountCredentials(j); err != nil {
+			return nil, errors.Wrap(err, "invalid service account credentials")
+		}
+
 		clientOptions = append(clientOptions, option.WithAuthCredentialsJSON(option.ServiceAccount, j))
 	} else if fn := opt.ServiceAccountCredentialsFile; fn != "" {
+		// Read and validate file credentials
+		credJSON, err := os.ReadFile(fn) //nolint:gosec
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read credentials file")
+		}
+
+		if err := ValidateServiceAccountCredentials(credJSON); err != nil {
+			return nil, errors.Wrap(err, "invalid service account credentials file")
+		}
+
 		clientOptions = append(clientOptions, option.WithAuthCredentialsFile(option.ServiceAccount, fn))
 	}
 
