@@ -1,9 +1,8 @@
 name: Simplified CI
 on:
   pull_request:
-    branches: [ main, local-main ]
   push:
-    branches: [ main, local-main, run-ci, linux-ci ]
+    branches: [ main, local-main, run-ci ]
     tags:
       - v*
   workflow_dispatch:
