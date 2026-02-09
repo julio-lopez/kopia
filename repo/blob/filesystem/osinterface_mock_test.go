@@ -16,6 +16,7 @@ type mockOS struct {
 	readFileRemainingErrors             atomic.Int32
 	writeFileRemainingErrors            atomic.Int32
 	writeFileCloseRemainingErrors       atomic.Int32
+	writeFileSyncRemainingErrors        atomic.Int32
 	createNewFileRemainingErrors        atomic.Int32
 	mkdirAllRemainingErrors             atomic.Int32
 	renameRemainingErrors               atomic.Int32
@@ -128,6 +129,10 @@ func (osi *mockOS) CreateNewFile(fname string, perm os.FileMode) (osWriteFile, e
 		return writeFailureFile{wf}, nil
 	}
 
+	if osi.writeFileSyncRemainingErrors.Add(-1) >= 0 {
+		return writeSyncFailureFile{wf}, nil
+	}
+
 	if osi.writeFileCloseRemainingErrors.Add(-1) >= 0 {
 		return writeCloseFailureFile{wf}, nil
 	}
@@ -163,12 +168,36 @@ func (f writeFailureFile) Write(b []byte) (int, error) {
 	return 0, &os.PathError{Op: "write", Err: errors.New("underlying problem")}
 }
 
+func (f writeFailureFile) Sync() error {
+	if s, ok := f.osWriteFile.(interface{ Sync() error }); ok {
+		return s.Sync()
+	}
+
+	return nil
+}
+
+type writeSyncFailureFile struct {
+	osWriteFile
+}
+
+func (f writeSyncFailureFile) Sync() error {
+	return &os.PathError{Op: "fsync", Err: errors.New("sync failure")}
+}
+
 type writeCloseFailureFile struct {
 	osWriteFile
 }
 
 func (f writeCloseFailureFile) Close() error {
 	return &os.PathError{Op: "close", Err: errors.New("underlying problem")}
+}
+
+func (f writeCloseFailureFile) Sync() error {
+	if s, ok := f.osWriteFile.(interface{ Sync() error }); ok {
+		return s.Sync()
+	}
+
+	return nil
 }
 
 type mockDirEntryInfoError struct {
