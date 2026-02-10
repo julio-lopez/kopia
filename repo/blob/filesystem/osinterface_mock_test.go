@@ -13,6 +13,8 @@ import (
 var errNonRetriable = errors.New("some non-retriable error")
 
 type mockOS struct {
+	osInterface
+
 	readFileRemainingErrors             atomic.Int32
 	writeFileRemainingErrors            atomic.Int32
 	writeFileCloseRemainingErrors       atomic.Int32
@@ -36,7 +38,8 @@ type mockOS struct {
 	//nolint:unused // Used with platform specific code
 	eStaleRemainingErrors atomic.Int32
 
-	osInterface
+	// allow intercepting and modifying the behavior of files open for writting
+	wrapNewFile func(osWriteFile) osWriteFile
 }
 
 func (osi *mockOS) Open(fname string) (osReadFile, error) {
@@ -126,15 +129,19 @@ func (osi *mockOS) CreateNewFile(fname string, perm os.FileMode) (osWriteFile, e
 	}
 
 	if osi.writeFileRemainingErrors.Add(-1) >= 0 {
-		return writeFailureFile{wf}, nil
+		wf = writeFailureFile{wf}
 	}
 
 	if osi.writeFileSyncRemainingErrors.Add(-1) >= 0 {
-		return writeSyncFailureFile{wf}, nil
+		wf = writeSyncFailureFile{wf}
 	}
 
 	if osi.writeFileCloseRemainingErrors.Add(-1) >= 0 {
-		return writeCloseFailureFile{wf}, nil
+		wf = writeCloseFailureFile{wf}
+	}
+
+	if osi.wrapNewFile != nil {
+		wf = osi.wrapNewFile(wf)
 	}
 
 	return wf, nil
@@ -190,14 +197,6 @@ type writeCloseFailureFile struct {
 
 func (f writeCloseFailureFile) Close() error {
 	return &os.PathError{Op: "close", Err: errors.New("underlying problem")}
-}
-
-func (f writeCloseFailureFile) Sync() error {
-	if s, ok := f.osWriteFile.(interface{ Sync() error }); ok {
-		return s.Sync()
-	}
-
-	return nil
 }
 
 type mockDirEntryInfoError struct {
