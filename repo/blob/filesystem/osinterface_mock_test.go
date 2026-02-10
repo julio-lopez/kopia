@@ -38,7 +38,7 @@ type mockOS struct {
 	//nolint:unused // Used with platform specific code
 	eStaleRemainingErrors atomic.Int32
 
-	// allow intercepting and modifying the behavior of files open for writting
+	// allow intercepting and modifying the behavior of files open for writing
 	wrapNewFile func(osWriteFile) osWriteFile
 }
 
@@ -133,7 +133,7 @@ func (osi *mockOS) CreateNewFile(fname string, perm os.FileMode) (osWriteFile, e
 	}
 
 	if osi.writeFileSyncRemainingErrors.Add(-1) >= 0 {
-		wf = writeSyncFailureFile{wf}
+		wf = syncFailureFile{wf}
 	}
 
 	if osi.writeFileCloseRemainingErrors.Add(-1) >= 0 {
@@ -175,19 +175,11 @@ func (f writeFailureFile) Write(b []byte) (int, error) {
 	return 0, &os.PathError{Op: "write", Err: errors.New("underlying problem")}
 }
 
-func (f writeFailureFile) Sync() error {
-	if s, ok := f.osWriteFile.(interface{ Sync() error }); ok {
-		return s.Sync()
-	}
-
-	return nil
-}
-
-type writeSyncFailureFile struct {
+type syncFailureFile struct {
 	osWriteFile
 }
 
-func (f writeSyncFailureFile) Sync() error {
+func (f syncFailureFile) Sync() error {
 	return &os.PathError{Op: "fsync", Err: errors.New("sync failure")}
 }
 
