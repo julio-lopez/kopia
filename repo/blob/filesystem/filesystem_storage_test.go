@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -495,4 +496,143 @@ func newMockOS() *mockOS {
 	return &mockOS{
 		osInterface: realOS{},
 	}
+}
+
+func TestFileStorage_CreateTempFileWithData_Success(t *testing.T) {
+	t.Parallel()
+
+	ctx := testlogging.Context(t)
+
+	dataDir := testutil.TempDirectory(t)
+
+	st, err := New(ctx, &Options{
+		Path: dataDir,
+		Options: sharded.Options{
+			DirectoryShards: []int{5, 2},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	defer st.Close(ctx)
+
+	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
+	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+
+	fsImpl := asFsImpl(t, st)
+
+	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	require.NoError(t, err)
+	require.NotEmpty(t, tempFile)
+	require.Contains(t, tempFile, ".tmp.")
+
+	// Verify temp file exists and has correct content
+	content, err := os.ReadFile(tempFile)
+	require.NoError(t, err)
+	require.Equal(t, []byte{1, 2, 3, 4, 5}, content)
+
+	// Cleanup
+	os.Remove(tempFile)
+}
+
+func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testlogging.Context(t)
+
+	dataDir := testutil.TempDirectory(t)
+
+	osi := newMockOS()
+	osi.writeFileRemainingErrors.Store(1)
+
+	st, err := New(ctx, &Options{
+		Path: dataDir,
+		Options: sharded.Options{
+			DirectoryShards: []int{5, 2},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	asFsImpl(t, st).osi = osi
+
+	defer st.Close(ctx)
+
+	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
+	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+
+	fsImpl := asFsImpl(t, st)
+
+	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "can't write temporary file")
+	require.Empty(t, tempFile)
+
+	// Verify temp file was removed (doesn't exist)
+	// We can't check for specific file since we don't know the random suffix
+	// but the error should have occurred and the function should return empty string
+}
+
+func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testlogging.Context(t)
+
+	dataDir := testutil.TempDirectory(t)
+
+	osi := newMockOS()
+	osi.writeFileSyncRemainingErrors.Store(1)
+
+	st, err := New(ctx, &Options{
+		Path: dataDir,
+		Options: sharded.Options{
+			DirectoryShards: []int{5, 2},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	asFsImpl(t, st).osi = osi
+
+	defer st.Close(ctx)
+
+	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
+	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+
+	fsImpl := asFsImpl(t, st)
+
+	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "can't sync temporary file data")
+	require.Empty(t, tempFile)
+}
+
+func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testlogging.Context(t)
+
+	dataDir := testutil.TempDirectory(t)
+
+	osi := newMockOS()
+	osi.writeFileCloseRemainingErrors.Store(1)
+
+	st, err := New(ctx, &Options{
+		Path: dataDir,
+		Options: sharded.Options{
+			DirectoryShards: []int{5, 2},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	asFsImpl(t, st).osi = osi
+
+	defer st.Close(ctx)
+
+	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
+	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+
+	fsImpl := asFsImpl(t, st)
+
+	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "can't close temporary file")
+	require.Empty(t, tempFile)
 }

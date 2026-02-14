@@ -154,7 +154,51 @@ func (fs *fsImpl) GetMetadataFromPath(ctx context.Context, dirPath, path string)
 	}, fs.isRetriable)
 }
 
-//nolint:wrapcheck,gocyclo
+// createTempFileWithData creates a temporary file, writes data to it, syncs and closes it.
+// Returns the name of the temporary file and an error.
+// If there is an error writing, syncing, or closing the file, the temporary file is removed.
+func (fs *fsImpl) createTempFileWithData(ctx context.Context, path string, data blob.Bytes) (string, error) {
+	randSuffix := make([]byte, tempFileRandomSuffixLen)
+	if _, err := rand.Read(randSuffix); err != nil {
+		return "", errors.Wrap(err, "can't get random bytes")
+	}
+
+	tempFile := fmt.Sprintf("%s.tmp.%x", path, randSuffix)
+
+	f, err := fs.createTempFileAndDir(tempFile)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot create temporary file")
+	}
+
+	// If any of the following operations fail, we need to remove the temp file
+	if _, err = data.WriteTo(f); err != nil {
+		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
+			log(ctx).Errorf("can't remove temp file after write error: %v", removeErr)
+		}
+
+		return "", errors.Wrap(err, "can't write temporary file")
+	}
+
+	if err = f.Sync(); err != nil {
+		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
+			log(ctx).Errorf("can't remove temp file after sync error: %v", removeErr)
+		}
+
+		return "", errors.Wrap(err, "can't sync temporary file data")
+	}
+
+	if err = f.Close(); err != nil {
+		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
+			log(ctx).Errorf("can't remove temp file after close error: %v", removeErr)
+		}
+
+		return "", errors.Wrap(err, "can't close temporary file")
+	}
+
+	return tempFile, nil
+}
+
+//nolint:wrapcheck
 func (fs *fsImpl) PutBlobInPath(ctx context.Context, dirPath, path string, data blob.Bytes, opts blob.PutOptions) error {
 	_ = dirPath
 
@@ -166,28 +210,9 @@ func (fs *fsImpl) PutBlobInPath(ctx context.Context, dirPath, path string, data 
 	}
 
 	return retry.WithExponentialBackoffNoValue(ctx, "PutBlobInPath:"+path, func() error {
-		randSuffix := make([]byte, tempFileRandomSuffixLen)
-		if _, err := rand.Read(randSuffix); err != nil {
-			return errors.Wrap(err, "can't get random bytes")
-		}
-
-		tempFile := fmt.Sprintf("%s.tmp.%x", path, randSuffix)
-
-		f, err := fs.createTempFileAndDir(tempFile)
+		tempFile, err := fs.createTempFileWithData(ctx, path, data)
 		if err != nil {
-			return errors.Wrap(err, "cannot create temporary file")
-		}
-
-		if _, err = data.WriteTo(f); err != nil {
-			return errors.Wrap(err, "can't write temporary file")
-		}
-
-		if err = f.Sync(); err != nil {
-			return errors.Wrap(err, "can't sync temporary file data")
-		}
-
-		if err = f.Close(); err != nil {
-			return errors.Wrap(err, "can't close temporary file")
+			return err
 		}
 
 		err = fs.osi.Rename(tempFile, path)
