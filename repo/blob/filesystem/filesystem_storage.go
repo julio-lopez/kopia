@@ -172,6 +172,8 @@ func (fs *fsImpl) createTempFileWithData(ctx context.Context, path string, data 
 
 	// If any of the following operations fail, we need to remove the temp file
 	if _, err = data.WriteTo(f); err != nil {
+		f.Close() //nolint:errcheck
+
 		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
 			log(ctx).Errorf("can't remove temp file after write error: %v", removeErr)
 		}
@@ -180,6 +182,8 @@ func (fs *fsImpl) createTempFileWithData(ctx context.Context, path string, data 
 	}
 
 	if err = f.Sync(); err != nil {
+		f.Close() //nolint:errcheck
+
 		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
 			log(ctx).Errorf("can't remove temp file after sync error: %v", removeErr)
 		}
