@@ -15,12 +15,12 @@ import (
 
 	"github.com/kopia/kopia/internal/cache"
 	"github.com/kopia/kopia/internal/cacheprot"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/crypto"
 	"github.com/kopia/kopia/internal/feature"
 	"github.com/kopia/kopia/internal/metrics"
 	"github.com/kopia/kopia/internal/repodiag"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/retry"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/beforeop"
@@ -324,8 +324,8 @@ func openWithConfig(ctx context.Context, st blob.Storage, cliOpts ClientOptions,
 	dw := repodiag.NewWriter(st, fmgr)
 
 	logManager := repodiag.NewLogManager(ctx, dw, options.DisableRepositoryLog, options.ContentLogWriter,
-		logparam.String("span:client", contentlog.HashSpanID(cliOpts.UsernameAtHost())),
-		logparam.String("span:repo", contentlog.RandomSpanID()))
+		logparam.String("span:client", repotracing.HashSpanID(cliOpts.UsernameAtHost())),
+		logparam.String("span:repo", repotracing.RandomSpanID()))
 
 	if options.TraceStorage {
 		st = loggingwrapper.NewWrapper(st, log(ctx), logManager.NewLogger("storage"), "[STORAGE] ")

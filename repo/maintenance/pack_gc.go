@@ -8,8 +8,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kopia/kopia/internal/blobparam"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/stats"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/repo/blob"
@@ -29,8 +29,8 @@ type DeleteUnreferencedPacksOptions struct {
 //
 //nolint:gocyclo,funlen
 func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWriter, opt DeleteUnreferencedPacksOptions, safety SafetyParameters) (*maintenancestats.DeleteUnreferencedPacksStats, error) {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:pack-gc", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:pack-gc", repotracing.RandomSpanID()))
 
 	log := rep.LogManager().NewLogger("maintenance-pack-gc")
 
@@ -57,7 +57,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 
 					cnt, del := deleted.Add(bm.Length)
 					if cnt%100 == 0 {
-						contentlog.Log2(ctx, log, "deleted unreferenced pack blobs", logparam.UInt32("count", cnt), logparam.Int64("bytes", del))
+						repotracing.Log2(ctx, log, "deleted unreferenced pack blobs", logparam.UInt32("count", cnt), logparam.Int64("bytes", del))
 					}
 				}
 
@@ -67,7 +67,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 	}
 
 	// iterate unreferenced packs and count them + optionally send to the channel to be deleted
-	contentlog.Log(ctx, log, "Looking for unreferenced pack blobs...")
+	repotracing.Log(ctx, log, "Looking for unreferenced pack blobs...")
 
 	var prefixes []blob.ID
 	if p := opt.Prefix; p != "" {
@@ -99,7 +99,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 		if bm.Timestamp.After(cutoffTime) {
 			retained.Add(bm.Length)
 
-			contentlog.Log3(ctx, log,
+			repotracing.Log3(ctx, log,
 				"preserving pack - after cutoff time",
 				blobparam.BlobID("blobID", bm.BlobID),
 				logparam.Time("cutoffTime", cutoffTime),
@@ -110,7 +110,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 		if age := cutoffTime.Sub(bm.Timestamp); age < safety.PackDeleteMinAge {
 			retained.Add(bm.Length)
 
-			contentlog.Log2(ctx, log,
+			repotracing.Log2(ctx, log,
 				"preserving pack - below min age",
 				blobparam.BlobID("blobID", bm.BlobID),
 				logparam.Duration("age", age))
@@ -122,7 +122,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 			if age := cutoffTime.Sub(s.CheckpointTime); age < safety.SessionExpirationAge {
 				retained.Add(bm.Length)
 
-				contentlog.Log2(ctx, log,
+				repotracing.Log2(ctx, log,
 					"preserving pack - part of active session",
 					blobparam.BlobID("blobID", bm.BlobID),
 					logparam.String("sessionID", string(sid)))
@@ -155,7 +155,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 		DeletedTotalSize:      0,
 	}
 
-	contentlog.Log1(ctx, log, "Found unreferenced pack blobs to delete", result)
+	repotracing.Log1(ctx, log, "Found unreferenced pack blobs to delete", result)
 
 	// wait for all delete workers to finish.
 	if err := eg.Wait(); err != nil {
@@ -170,7 +170,7 @@ func DeleteUnreferencedPacks(ctx context.Context, rep repo.DirectRepositoryWrite
 	result.DeletedPackCount = deletedCount
 	result.DeletedTotalSize = deletedSize
 
-	contentlog.Log1(ctx, log, "Completed deleting unreferenced pack blobs", result)
+	repotracing.Log1(ctx, log, "Completed deleting unreferenced pack blobs", result)
 
 	return result, nil
 }

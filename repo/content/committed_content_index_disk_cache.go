@@ -11,9 +11,9 @@ import (
 
 	"github.com/kopia/kopia/internal/blobparam"
 	"github.com/kopia/kopia/internal/cache"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/content/index"
 )
@@ -26,7 +26,7 @@ type diskCommittedContentIndexCache struct {
 	dirname              string
 	timeNow              func() time.Time
 	v1PerContentOverhead func() int
-	log                  *contentlog.Logger
+	log                  *repotracing.Logger
 	minSweepAge          time.Duration
 }
 
@@ -121,7 +121,7 @@ func writeTempFileAtomic(dirname string, data []byte) (string, error) {
 }
 
 func (c *diskCommittedContentIndexCache) expireUnused(ctx context.Context, used []blob.ID) error {
-	contentlog.Log2(ctx, c.log, "expireUnused",
+	repotracing.Log2(ctx, c.log, "expireUnused",
 		blobparam.BlobIDList("except", used),
 		logparam.Duration("minSweepAge", c.minSweepAge))
 
@@ -154,17 +154,17 @@ func (c *diskCommittedContentIndexCache) expireUnused(ctx context.Context, used 
 
 	for _, rem := range remaining {
 		if c.timeNow().Sub(rem.ModTime()) > c.minSweepAge {
-			contentlog.Log2(ctx, c.log, "removing unused",
+			repotracing.Log2(ctx, c.log, "removing unused",
 				logparam.String("name", rem.Name()),
 				logparam.Time("mtime", rem.ModTime()))
 
 			if err := os.Remove(filepath.Join(c.dirname, rem.Name())); err != nil {
-				contentlog.Log1(ctx, c.log,
+				repotracing.Log1(ctx, c.log,
 					"unable to remove unused index file",
 					logparam.Error("err", err))
 			}
 		} else {
-			contentlog.Log3(ctx, c.log, "keeping unused index because it's too new",
+			repotracing.Log3(ctx, c.log, "keeping unused index because it's too new",
 				logparam.String("name", rem.Name()),
 				logparam.Time("mtime", rem.ModTime()),
 				logparam.Duration("threshold", c.minSweepAge))

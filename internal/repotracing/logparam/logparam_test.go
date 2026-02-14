@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/internal/clock"
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 func TestString(t *testing.T) {
@@ -72,7 +72,7 @@ func TestString(t *testing.T) {
 			// Test output format
 			param := String(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -147,7 +147,7 @@ func TestInt64(t *testing.T) {
 			// Test output format
 			param := Int64(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -206,7 +206,7 @@ func TestInt(t *testing.T) {
 			// Test output format
 			param := Int(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -265,7 +265,7 @@ func TestInt32(t *testing.T) {
 			// Test output format
 			param := Int32(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -316,7 +316,7 @@ func TestBool(t *testing.T) {
 			// Test output format
 			param := Bool(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -379,7 +379,7 @@ func TestTime(t *testing.T) {
 			// Test output format
 			param := Time(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -443,7 +443,7 @@ func TestError(t *testing.T) {
 			// Test output format
 			param := Error(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -502,7 +502,7 @@ func TestUInt64(t *testing.T) {
 			// Test output format
 			param := UInt64(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -577,7 +577,7 @@ func TestDuration(t *testing.T) {
 			// Test output format
 			param := Duration(tt.key, tt.value)
 
-			jw := contentlog.NewJSONWriter()
+			jw := repotracing.NewJSONWriter()
 			defer jw.Release()
 
 			jw.BeginObject()
@@ -594,12 +594,12 @@ func TestDuration(t *testing.T) {
 
 // TestWriteValueToMemoryAllocations tests that WriteValueTo methods don't allocate memory.
 func TestWriteValueToMemoryAllocations(t *testing.T) {
-	jw := contentlog.NewJSONWriter()
+	jw := repotracing.NewJSONWriter()
 	defer jw.Release()
 
 	tests := []struct {
 		name  string
-		param contentlog.ParamWriter
+		param repotracing.ParamWriter
 	}{
 		{
 			name:  "stringParam",

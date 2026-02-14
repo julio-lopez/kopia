@@ -15,9 +15,9 @@ import (
 
 	"github.com/kopia/kopia/internal/blobparam"
 	"github.com/kopia/kopia/internal/completeset"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/maintenancestats"
 )
@@ -189,7 +189,7 @@ type Manager struct {
 
 	st       blob.Storage
 	compact  CompactionFunc
-	log      *contentlog.Logger
+	log      *repotracing.Logger
 	timeFunc func() time.Time
 
 	// wait group that waits for all compaction and cleanup goroutines.
@@ -246,7 +246,7 @@ func (e *Manager) AdvanceDeletionWatermark(ctx context.Context, ts time.Time) (b
 	}
 
 	if ts.Before(cs.DeletionWatermark) {
-		contentlog.Log2(ctx, e.log,
+		repotracing.Log2(ctx, e.log,
 			"ignoring attempt to move deletion watermark time backwards",
 			logparam.Time("ts", ts),
 			logparam.Time("deletionWatermark", cs.DeletionWatermark),
@@ -419,7 +419,7 @@ func (e *Manager) CleanupSupersededIndexes(ctx context.Context) (*maintenancesta
 	// may have not observed them yet.
 	maxReplacementTime := maxTime.Add(-p.CleanupSafetyMargin)
 
-	contentlog.Log1(ctx, e.log, "Cleaning up superseded index blobs...",
+	repotracing.Log1(ctx, e.log, "Cleaning up superseded index blobs...",
 		logparam.Time("maxReplacementTime", maxReplacementTime))
 
 	// delete uncompacted indexes for epochs that already have single-epoch compaction
@@ -494,7 +494,7 @@ func (e *Manager) refreshLocked(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "refreshAttemptLocked")
 		}
 
-		contentlog.Log2(ctx, e.log, "refresh attempt failed", logparam.Error("error", err), logparam.Duration("nextDelayTime", nextDelayTime))
+		repotracing.Log2(ctx, e.log, "refresh attempt failed", logparam.Error("error", err), logparam.Duration("nextDelayTime", nextDelayTime))
 		time.Sleep(nextDelayTime)
 
 		nextDelayTime = min(time.Duration(float64(nextDelayTime)*maxRefreshAttemptSleepExponent), maxRefreshAttemptSleep)
@@ -531,7 +531,7 @@ func (e *Manager) loadDeletionWatermark(ctx context.Context, cs *CurrentSnapshot
 	for _, b := range blobs {
 		t, ok := deletionWatermarkFromBlobID(b.BlobID)
 		if !ok {
-			contentlog.Log1(ctx, e.log, "ignoring malformed deletion watermark", blobparam.BlobID("blobID", b.BlobID))
+			repotracing.Log1(ctx, e.log, "ignoring malformed deletion watermark", blobparam.BlobID("blobID", b.BlobID))
 			continue
 		}
 
@@ -551,7 +551,7 @@ func (e *Manager) loadRangeCheckpoints(ctx context.Context, cs *CurrentSnapshot)
 		return errors.Wrap(err, "error loading full checkpoints")
 	}
 
-	contentlog.Log2(ctx, e.log,
+	repotracing.Log2(ctx, e.log,
 		"ranges",
 		logparam.Int("numRanges", len(blobs)),
 		blobparam.BlobMetadataList("blobs", blobs))
@@ -608,7 +608,7 @@ func (e *Manager) MaybeGenerateRangeCheckpoint(ctx context.Context) (*maintenanc
 
 	firstNonRangeCompacted, latestSettled, compact := getRangeToCompact(cs, *p)
 	if !compact {
-		contentlog.Log(ctx, e.log, "not generating range checkpoint")
+		repotracing.Log(ctx, e.log, "not generating range checkpoint")
 
 		return nil, nil
 	}
@@ -678,11 +678,11 @@ func (e *Manager) loadUncompactedEpochs(ctx context.Context, first, last int) (m
 // refreshAttemptLocked attempts to load the committedState of
 // the index and updates `lastKnownState` state atomically when complete.
 func (e *Manager) refreshAttemptLocked(ctx context.Context) error {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:emr", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:emr", repotracing.RandomSpanID()))
 
-	contentlog.Log(ctx, e.log, "refreshAttempt started")
-	defer contentlog.Log(ctx, e.log, "refreshAttempt finished")
+	repotracing.Log(ctx, e.log, "refreshAttempt started")
+	defer repotracing.Log(ctx, e.log, "refreshAttempt finished")
 
 	p, perr := e.getParameters(ctx)
 	if perr != nil {
@@ -723,7 +723,7 @@ func (e *Manager) refreshAttemptLocked(ctx context.Context) error {
 
 	cs.UncompactedEpochSets = ues
 
-	contentlog.Log5(ctx, e.log,
+	repotracing.Log5(ctx, e.log,
 		"epochs determined",
 		logparam.Int("writeEpoch", cs.WriteEpoch),
 		logparam.Int("ues1", len(ues[cs.WriteEpoch-1])),
@@ -786,7 +786,7 @@ func (e *Manager) committedState(ctx context.Context, ensureMinTime time.Duratio
 	defer e.mu.Unlock()
 
 	if now := e.timeFunc().Add(ensureMinTime); now.After(e.lastKnownState.ValidUntil) {
-		contentlog.Log2(
+		repotracing.Log2(
 			ctx, e.log,
 			"refreshing committed state because it's no longer valid",
 			logparam.Time("now", now),
@@ -815,7 +815,7 @@ func (e *Manager) GetCompleteIndexSet(ctx context.Context, maxEpoch int) ([]blob
 
 		result, err := e.getCompleteIndexSetForCommittedState(ctx, cs, 0, maxEpoch)
 		if e.timeFunc().Before(cs.ValidUntil) {
-			contentlog.Log4(ctx, e.log,
+			repotracing.Log4(ctx, e.log,
 				"complete index set",
 				logparam.Int("maxEpoch", maxEpoch),
 				logparam.Int("resultLength", len(result)),
@@ -834,7 +834,7 @@ func (e *Manager) GetCompleteIndexSet(ctx context.Context, maxEpoch int) ([]blob
 		// indexes that are still treated as authoritative according to old committed state.
 		//
 		// Retrying will re-examine the state of the world and re-do the logic.
-		contentlog.Log(ctx, e.log, "GetCompleteIndexSet took too long, retrying to ensure correctness")
+		repotracing.Log(ctx, e.log, "GetCompleteIndexSet took too long, retrying to ensure correctness")
 		atomic.AddInt32(e.getCompleteIndexSetTooSlow, 1)
 	}
 }
@@ -849,7 +849,7 @@ func (e *Manager) WriteIndex(ctx0 context.Context, dataShards map[blob.ID]blob.B
 	attempt := 0
 
 	for {
-		ctx := contentlog.WithParams(ctx0,
+		ctx := repotracing.WithParams(ctx0,
 			logparam.String("span:writeEpochIndex", fmt.Sprintf("attempt-%v", attempt)))
 
 		p, err := e.getParameters(ctx)
@@ -879,7 +879,7 @@ func (e *Manager) WriteIndex(ctx0 context.Context, dataShards map[blob.ID]blob.B
 		}
 
 		if err != nil {
-			contentlog.Log1(ctx, e.log, "index-write-error", logparam.Error("error", err))
+			repotracing.Log1(ctx, e.log, "index-write-error", logparam.Error("error", err))
 			return nil, err
 		}
 
@@ -894,10 +894,10 @@ func (e *Manager) WriteIndex(ctx0 context.Context, dataShards map[blob.ID]blob.B
 	}
 
 	if cs.WriteEpoch >= writtenForEpoch+2 {
-		contentlog.Log(ctx0, e.log, "index-write-extremely-slow")
+		repotracing.Log(ctx0, e.log, "index-write-extremely-slow")
 
 		if err = e.deletePartiallyWrittenShards(ctx0, written); err != nil {
-			contentlog.Log1(ctx0, e.log, "index-write-extremely-slow-cleanup-failed", logparam.Error("error", err))
+			repotracing.Log1(ctx0, e.log, "index-write-extremely-slow-cleanup-failed", logparam.Error("error", err))
 		}
 
 		return nil, ErrVerySlowIndexWrite
@@ -909,7 +909,7 @@ func (e *Manager) WriteIndex(ctx0 context.Context, dataShards map[blob.ID]blob.B
 		results = append(results, v)
 	}
 
-	contentlog.Log1(ctx0, e.log, "index-write-success", blobparam.BlobMetadataList("results", results))
+	repotracing.Log1(ctx0, e.log, "index-write-success", blobparam.BlobMetadataList("results", results))
 
 	return results, nil
 }
@@ -925,7 +925,7 @@ func (e *Manager) deletePartiallyWrittenShards(ctx context.Context, blobs map[bl
 }
 
 func (e *Manager) writeIndexShards(ctx context.Context, dataShards map[blob.ID]blob.Bytes, written map[blob.ID]blob.Metadata, cs CurrentSnapshot) error {
-	contentlog.Log3(ctx, e.log, "writing index shards",
+	repotracing.Log3(ctx, e.log, "writing index shards",
 		logparam.Int("shardCount", len(dataShards)),
 		logparam.Time("validUntil", cs.ValidUntil),
 		logparam.Duration("remaining", cs.ValidUntil.Sub(e.timeFunc())))
@@ -933,7 +933,7 @@ func (e *Manager) writeIndexShards(ctx context.Context, dataShards map[blob.ID]b
 	for unprefixedBlobID, data := range dataShards {
 		blobID := UncompactedEpochBlobPrefix(cs.WriteEpoch) + unprefixedBlobID
 		if _, ok := written[blobID]; ok {
-			contentlog.Log1(ctx, e.log,
+			repotracing.Log1(ctx, e.log,
 				"already written",
 				blobparam.BlobID("blobID", blobID))
 
@@ -941,7 +941,7 @@ func (e *Manager) writeIndexShards(ctx context.Context, dataShards map[blob.ID]b
 		}
 
 		if now := e.timeFunc(); !now.Before(cs.ValidUntil) {
-			contentlog.Log1(ctx, e.log, "write was too slow, retrying", logparam.Time("validUntil", cs.ValidUntil))
+			repotracing.Log1(ctx, e.log, "write was too slow, retrying", logparam.Time("validUntil", cs.ValidUntil))
 			atomic.AddInt32(e.writeIndexTooSlow, 1)
 
 			return errWriteIndexTryAgain
@@ -952,7 +952,7 @@ func (e *Manager) writeIndexShards(ctx context.Context, dataShards map[blob.ID]b
 			return errors.Wrap(err, "error writing index blob")
 		}
 
-		contentlog.Log1(ctx, e.log, "wrote-index-shard", blobparam.BlobMetadata("metadata", bm))
+		repotracing.Log1(ctx, e.log, "wrote-index-shard", blobparam.BlobMetadata("metadata", bm))
 
 		written[bm.BlobID] = bm
 	}
@@ -982,7 +982,7 @@ func (e *Manager) getCompleteIndexSetForCommittedState(ctx context.Context, cs C
 
 	eg, ctx := errgroup.WithContext(ctx)
 
-	contentlog.Log3(ctx, e.log, "adding incremental state for epochs",
+	repotracing.Log3(ctx, e.log, "adding incremental state for epochs",
 		logparam.Int("startEpoch", startEpoch),
 		logparam.Int("maxEpoch", maxEpoch),
 		blobparam.BlobIDList("result", blob.IDsFromMetadata(result)),
@@ -1032,7 +1032,7 @@ func (e *Manager) MaybeCompactSingleEpoch(ctx context.Context) (*maintenancestat
 	}
 
 	if !cs.isSettledEpochNumber(uncompacted) {
-		contentlog.Log1(ctx, e.log, "there are no uncompacted epochs eligible for compaction", logparam.Int("oldestUncompactedEpoch", uncompacted))
+		repotracing.Log1(ctx, e.log, "there are no uncompacted epochs eligible for compaction", logparam.Int("oldestUncompactedEpoch", uncompacted))
 
 		return nil, nil
 	}
@@ -1059,7 +1059,7 @@ func (e *Manager) MaybeCompactSingleEpoch(ctx context.Context) (*maintenancestat
 		Epoch:                    uncompacted,
 	}
 
-	contentlog.Log1(ctx, e.log, "starting single-epoch compaction for epoch", result)
+	repotracing.Log1(ctx, e.log, "starting single-epoch compaction for epoch", result)
 
 	if err := e.compact(ctx, blob.IDsFromMetadata(uncompactedBlobs), compactedEpochBlobPrefix(uncompacted)); err != nil {
 		return nil, errors.Wrapf(err, "unable to compact blobs for epoch %v: performance will be affected", uncompacted)
@@ -1091,7 +1091,7 @@ func (e *Manager) getIndexesFromEpochInternal(ctx context.Context, cs CurrentSna
 }
 
 func (e *Manager) generateRangeCheckpointFromCommittedState(ctx context.Context, cs CurrentSnapshot, minEpoch, maxEpoch int) error {
-	contentlog.Log2(ctx, e.log,
+	repotracing.Log2(ctx, e.log,
 		"generating range checkpoint",
 		logparam.Int("minEpoch", minEpoch),
 		logparam.Int("maxEpoch", maxEpoch))
@@ -1126,7 +1126,7 @@ func rangeCheckpointBlobPrefix(epoch1, epoch2 int) blob.ID {
 }
 
 // NewManager creates new epoch manager.
-func NewManager(st blob.Storage, paramProvider ParametersProvider, compactor CompactionFunc, log *contentlog.Logger, timeNow func() time.Time) *Manager {
+func NewManager(st blob.Storage, paramProvider ParametersProvider, compactor CompactionFunc, log *repotracing.Logger, timeNow func() time.Time) *Manager {
 	return &Manager{
 		st:                           st,
 		log:                          log,

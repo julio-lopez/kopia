@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const compactIndexesStatsKind = "compactIndexesStats"
@@ -15,7 +15,7 @@ type CompactIndexesStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (cs *CompactIndexesStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (cs *CompactIndexesStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(cs.Kind())
 	jw.TimeField("droppedContentsDeletedBefore", cs.DroppedContentsDeletedBefore)
 	jw.EndObject()

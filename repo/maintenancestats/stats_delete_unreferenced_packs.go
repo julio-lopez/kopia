@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const deleteUnreferencedPacksStatsKind = "deleteUnreferencedPacksStats"
@@ -19,7 +19,7 @@ type DeleteUnreferencedPacksStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (ds *DeleteUnreferencedPacksStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (ds *DeleteUnreferencedPacksStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(ds.Kind())
 	jw.UInt32Field("unreferencedPackCount", ds.UnreferencedPackCount)
 	jw.Int64Field("unreferencedTotalSize", ds.UnreferencedTotalSize)

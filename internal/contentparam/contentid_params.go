@@ -2,7 +2,7 @@
 package contentparam
 
 import (
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 	"github.com/kopia/kopia/repo/content/index"
 )
 
@@ -13,7 +13,7 @@ type contentIDParam struct {
 	Value index.ID
 }
 
-func (e contentIDParam) WriteValueTo(jw *contentlog.JSONWriter) {
+func (e contentIDParam) WriteValueTo(jw *repotracing.JSONWriter) {
 	var buf [128]byte
 
 	jw.RawJSONField(e.Key, e.Value.AppendToJSON(buf[:0], maxLoggedContentIDLength))

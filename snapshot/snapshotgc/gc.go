@@ -9,9 +9,9 @@ import (
 
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/internal/bigmap"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/contentparam"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/stats"
 	"github.com/kopia/kopia/internal/units"
 	"github.com/kopia/kopia/repo"
@@ -28,7 +28,7 @@ import (
 // User-visible log output.
 var userLog = logging.Module("snapshotgc")
 
-func findInUseContentIDs(ctx context.Context, log *contentlog.Logger, rep repo.Repository, used *bigmap.Set) error {
+func findInUseContentIDs(ctx context.Context, log *repotracing.Logger, rep repo.Repository, used *bigmap.Set) error {
 	ids, err := snapshot.ListSnapshotManifests(ctx, rep, nil, nil)
 	if err != nil {
 		return errors.Wrap(err, "unable to list snapshot manifest IDs")
@@ -61,7 +61,7 @@ func findInUseContentIDs(ctx context.Context, log *contentlog.Logger, rep repo.R
 
 	defer w.Close(ctx)
 
-	contentlog.Log(ctx, log, "Looking for active contents...")
+	repotracing.Log(ctx, log, "Looking for active contents...")
 
 	for _, m := range manifests {
 		root, err := snapshotfs.SnapshotRoot(rep, m)
@@ -87,8 +87,8 @@ func Run(ctx context.Context, rep repo.DirectRepositoryWriter, gcDelete bool, sa
 }
 
 func runInternal(ctx context.Context, rep repo.DirectRepositoryWriter, gcDelete bool, safety maintenance.SafetyParameters, maintenanceStartTime time.Time) (*maintenancestats.SnapshotGCStats, error) {
-	ctx = contentlog.WithParams(ctx,
-		logparam.String("span:snapshot-gc", contentlog.RandomSpanID()))
+	ctx = repotracing.WithParams(ctx,
+		logparam.String("span:snapshot-gc", repotracing.RandomSpanID()))
 
 	log := rep.LogManager().NewLogger("maintenance-snapshot-gc")
 
@@ -107,7 +107,7 @@ func runInternal(ctx context.Context, rep repo.DirectRepositoryWriter, gcDelete 
 
 func findUnreferencedAndRepairRereferenced(
 	ctx context.Context,
-	log *contentlog.Logger,
+	log *repotracing.Logger,
 	rep repo.DirectRepositoryWriter,
 	gcDelete bool,
 	safety maintenance.SafetyParameters,
@@ -116,7 +116,7 @@ func findUnreferencedAndRepairRereferenced(
 ) (*maintenancestats.SnapshotGCStats, error) {
 	var unused, inUse, system, tooRecent, undeleted, deleted stats.CountSum
 
-	contentlog.Log(ctx, log, "Looking for unreferenced contents...")
+	repotracing.Log(ctx, log, "Looking for unreferenced contents...")
 
 	// Ensure that the iteration includes deleted contents, so those can be
 	// undeleted (recovered).
@@ -143,7 +143,7 @@ func findUnreferencedAndRepairRereferenced(
 		}
 
 		if maintenanceStartTime.Sub(ci.Timestamp()) < safety.MinContentAgeSubjectToGC {
-			contentlog.Log3(ctx, log,
+			repotracing.Log3(ctx, log,
 				"recent unreferenced content",
 				contentparam.ContentID("contentID", ci.ContentID),
 				logparam.Int64("bytes", int64(ci.PackedLength)),
@@ -153,7 +153,7 @@ func findUnreferencedAndRepairRereferenced(
 			return nil
 		}
 
-		contentlog.Log3(ctx, log,
+		repotracing.Log3(ctx, log,
 			"unreferenced content",
 			contentparam.ContentID("contentID", ci.ContentID),
 			logparam.Int64("bytes", int64(ci.PackedLength)),
@@ -170,7 +170,7 @@ func findUnreferencedAndRepairRereferenced(
 		}
 
 		if cnt%100000 == 0 {
-			contentlog.Log2(ctx, log,
+			repotracing.Log2(ctx, log,
 				"found unused contents so far",
 				logparam.UInt32("count", cnt),
 				logparam.Int64("bytes", totalSize))
@@ -193,7 +193,7 @@ func findUnreferencedAndRepairRereferenced(
 	userLog(ctx).Infof("GC found %v in-use system-contents (%v)", result.InUseSystemContentCount, units.BytesString(result.InUseSystemContentSize))
 	userLog(ctx).Infof("GC undeleted %v contents (%v)", result.RecoveredContentCount, units.BytesString(result.RecoveredContentSize))
 
-	contentlog.Log1(ctx, log, "Snapshot GC", result)
+	repotracing.Log1(ctx, log, "Snapshot GC", result)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error iterating contents")

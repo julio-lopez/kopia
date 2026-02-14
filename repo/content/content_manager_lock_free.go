@@ -13,10 +13,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/kopia/kopia/internal/blobparam"
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
 	"github.com/kopia/kopia/internal/contentparam"
 	"github.com/kopia/kopia/internal/gather"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 	"github.com/kopia/kopia/internal/timetrack"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/compression"
@@ -131,12 +131,12 @@ func (sm *SharedManager) preparePackDataContent(ctx context.Context, mp format.M
 		if info.PackBlobID == pp.packBlobID {
 			haveContent = true
 
-			contentlog.Log3(ctx, sm.log, "add-to-pack",
+			repotracing.Log3(ctx, sm.log, "add-to-pack",
 				contentparam.ContentID("cid", info.ContentID),
 				logparam.UInt32("len", info.PackedLength),
 				logparam.Bool("del", info.Deleted))
 		} else {
-			contentlog.Log4(ctx, sm.log, "move-to-pack",
+			repotracing.Log4(ctx, sm.log, "move-to-pack",
 				contentparam.ContentID("cid", info.ContentID),
 				blobparam.BlobID("sourcePack", info.PackBlobID),
 				logparam.UInt32("len", info.PackedLength),

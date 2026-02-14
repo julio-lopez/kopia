@@ -1,7 +1,7 @@
-// Package contentlog provides a JSON writer that can write JSON to a buffer
+// Package repotracing provides a JSON writer that can write JSON to a buffer
 // without any memory allocations and Logger that can write log entries
 // with strongly-typed parameters.
-package contentlog
+package repotracing
 
 import (
 	"strconv"
