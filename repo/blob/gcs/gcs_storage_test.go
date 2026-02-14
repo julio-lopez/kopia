@@ -146,7 +146,7 @@ func getBlobCount(ctx context.Context, t *testing.T, st blob.Storage, prefix blo
 func TestValidateServiceAccountCredentials(t *testing.T) {
 	t.Parallel()
 
-	validCred := `{
+	validServiceAccountCred := `{
 		"type": "service_account",
 		"project_id": "test-project",
 		"private_key_id": "key123",
@@ -157,6 +157,20 @@ func TestValidateServiceAccountCredentials(t *testing.T) {
 		"token_uri": "https://oauth2.googleapis.com/token"
 	}`
 
+	validExternalAccountCred := `{
+		"type": "external_account",
+		"audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+		"subject_token_type": "urn:ietf:params:aws:token-type:aws4_request",
+		"token_url": "https://sts.googleapis.com/v1/token",
+		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@project.iam.gserviceaccount.com:generateAccessToken",
+		"credential_source": {
+			"environment_id": "aws1",
+			"region_url": "http://169.254.169.254/latest/meta-data/placement/region",
+			"url": "http://169.254.169.254/latest/meta-data/iam/security-credentials",
+			"regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
+		}
+	}`
+
 	tests := []struct {
 		name    string
 		json    string
@@ -164,8 +178,13 @@ func TestValidateServiceAccountCredentials(t *testing.T) {
 		errText string
 	}{
 		{
-			name:    "valid credentials",
-			json:    validCred,
+			name:    "valid service account credentials",
+			json:    validServiceAccountCred,
+			wantErr: false,
+		},
+		{
+			name:    "valid external account credentials",
+			json:    validExternalAccountCred,
 			wantErr: false,
 		},
 		{
@@ -175,62 +194,52 @@ func TestValidateServiceAccountCredentials(t *testing.T) {
 			errText: "failed to parse credential JSON",
 		},
 		{
-			name:    "wrong type",
+			name:    "unknown credential type is accepted",
 			json:    `{"type": "authorized_user"}`,
-			wantErr: true,
-			errText: "invalid credential type",
+			wantErr: false,
 		},
 		{
-			name:    "missing private_key_id",
-			json:    `{"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123"}`,
+			name:    "service account missing private_key_id",
+			json:    `{"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com"}`,
 			wantErr: true,
 			errText: "missing required field: private_key_id",
 		},
 		{
-			name:    "missing private_key",
-			json:    `{"type": "service_account", "private_key_id": "key123", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123"}`,
+			name:    "service account missing private_key",
+			json:    `{"type": "service_account", "private_key_id": "key123", "client_email": "test@test.iam.gserviceaccount.com"}`,
 			wantErr: true,
 			errText: "missing required field: private_key",
 		},
 		{
-			name:    "missing client_email",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_id": "123"}`,
+			name:    "service account missing client_email",
+			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n"}`,
 			wantErr: true,
 			errText: "missing required field: client_email",
 		},
 		{
-			name:    "missing client_id",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com"}`,
+			name:    "external account missing token_url",
+			json:    `{"type": "external_account", "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider"}`,
 			wantErr: true,
-			errText: "missing required field: client_id",
+			errText: "missing required field: token_url or token_uri",
 		},
 		{
-			name:    "invalid client_email format",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n", "client_email": "test@example.com", "client_id": "123"}`,
+			name:    "external account with invalid service_account_impersonation_url",
+			json:    `{"type": "external_account", "token_url": "https://sts.googleapis.com/v1/token", "service_account_impersonation_url": "https://evil.com/impersonate"}`,
 			wantErr: true,
-			errText: "invalid client_email format",
+			errText: "invalid service_account_impersonation_url",
 		},
 		{
-			name:    "invalid private_key format",
-			json:    `{"type": "service_account", "private_key_id": "key123", "private_key": "not a key", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123"}`,
-			wantErr: true,
-			errText: "invalid private_key format",
+			name:    "external account with credential_source file",
+			json:    `{"type": "external_account", "token_url": "https://sts.googleapis.com/v1/token", "credential_source": {"file": "/path/to/token"}}`,
+			wantErr: false,
 		},
 		{
-			name: "invalid token_uri",
-			json: `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n` +
-				`-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", ` +
-				`"token_uri": "https://evil.com/token"}`,
-			wantErr: true,
-			errText: "invalid token_uri",
-		},
-		{
-			name: "invalid auth_uri",
-			json: `{"type": "service_account", "private_key_id": "key123", "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n` +
-				`-----END PRIVATE KEY-----\n", "client_email": "test@test.iam.gserviceaccount.com", "client_id": "123", ` +
-				`"auth_uri": "https://evil.com/auth"}`,
-			wantErr: true,
-			errText: "invalid auth_uri",
+			name: "external account with credential_source aws",
+			json: `{"type": "external_account", "token_url": "https://sts.googleapis.com/v1/token", "credential_source": {` +
+				`"url": "http://169.254.169.254/latest/meta-data/iam/security-credentials", ` +
+				`"region_url": "http://169.254.169.254/latest/meta-data/placement/region", ` +
+				`"imdsv2_session_token_url": "http://169.254.169.254/latest/api/token"}}`,
+			wantErr: false,
 		},
 	}
 

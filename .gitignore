@@ -30,4 +30,3 @@ coverage.txt
 .screenshots/
 .idea/
 /.vs
-*.test
