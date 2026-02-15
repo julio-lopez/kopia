@@ -173,11 +173,13 @@ func (fs *fsImpl) createTempFileWithData(path string, data blob.Bytes) (name str
 
 	defer func() {
 		if closeErr := f.Close(); closeErr != nil {
-			err = stderrors.Join(err, closeErr)
+			err = stderrors.Join(err, errors.Wrap(closeErr, "can't close temporary file"))
 		}
 
 		// remove temp file when any of the operations fail
 		if err != nil {
+			name = ""
+
 			if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
 				err = stderrors.Join(err, errors.Wrap(removeErr, "can't remove temp file after error"))
 			}

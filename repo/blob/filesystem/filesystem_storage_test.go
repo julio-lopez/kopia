@@ -633,6 +633,6 @@ func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
 
 	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "can't close temporary file")
+	require.ErrorContains(t, err, "can't close temporary file")
 	require.Empty(t, tempFile)
 }
