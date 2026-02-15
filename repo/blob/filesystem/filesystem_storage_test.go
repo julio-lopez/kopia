@@ -502,7 +502,6 @@ func TestFileStorage_CreateTempFileWithData_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := testlogging.Context(t)
-
 	dataDir := testutil.TempDirectory(t)
 
 	st, err := New(ctx, &Options{
@@ -513,14 +512,14 @@ func TestFileStorage_CreateTempFileWithData_Success(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	defer st.Close(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, st.Close(ctx))
+	})
 
 	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
 	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+	tempFile, err := asFsImpl(t, st).createTempFileWithData(testPath, data)
 
-	fsImpl := asFsImpl(t, st)
-
-	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.NoError(t, err)
 	require.NotEmpty(t, tempFile)
 	require.Contains(t, tempFile, ".tmp.")
@@ -538,7 +537,6 @@ func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testlogging.Context(t)
-
 	dataDir := testutil.TempDirectory(t)
 
 	osi := newMockOS()
@@ -549,19 +547,18 @@ func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
 		Options: sharded.Options{
 			DirectoryShards: []int{5, 2},
 		},
+		osInterfaceOverride: osi,
 	}, true)
 	require.NoError(t, err)
 
-	asFsImpl(t, st).osi = osi
-
-	defer st.Close(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, st.Close(ctx))
+	})
 
 	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
 	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+	tempFile, err := asFsImpl(t, st).createTempFileWithData(testPath, data)
 
-	fsImpl := asFsImpl(t, st)
-
-	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't write temporary file")
 	require.Empty(t, tempFile)
@@ -575,7 +572,6 @@ func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testlogging.Context(t)
-
 	dataDir := testutil.TempDirectory(t)
 
 	osi := newMockOS()
@@ -586,19 +582,18 @@ func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
 		Options: sharded.Options{
 			DirectoryShards: []int{5, 2},
 		},
+		osInterfaceOverride: osi,
 	}, true)
 	require.NoError(t, err)
 
-	asFsImpl(t, st).osi = osi
-
-	defer st.Close(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, st.Close(ctx))
+	})
 
 	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
 	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+	tempFile, err := asFsImpl(t, st).createTempFileWithData(testPath, data)
 
-	fsImpl := asFsImpl(t, st)
-
-	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't sync temporary file data")
 	require.Empty(t, tempFile)
@@ -619,19 +614,18 @@ func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
 		Options: sharded.Options{
 			DirectoryShards: []int{5, 2},
 		},
+		osInterfaceOverride: osi,
 	}, true)
 	require.NoError(t, err)
 
-	asFsImpl(t, st).osi = osi
-
-	defer st.Close(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, st.Close(ctx))
+	})
 
 	data := gather.FromSlice([]byte{1, 2, 3, 4, 5})
 	testPath := filepath.Join(dataDir, "someb", "lo", "b1234567812345678.f")
+	tempFile, err := asFsImpl(t, st).createTempFileWithData(testPath, data)
 
-	fsImpl := asFsImpl(t, st)
-
-	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "can't close temporary file")
 	require.Empty(t, tempFile)
