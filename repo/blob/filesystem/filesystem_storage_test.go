@@ -520,7 +520,7 @@ func TestFileStorage_CreateTempFileWithData_Success(t *testing.T) {
 
 	fsImpl := asFsImpl(t, st)
 
-	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.NoError(t, err)
 	require.NotEmpty(t, tempFile)
 	require.Contains(t, tempFile, ".tmp.")
@@ -561,7 +561,7 @@ func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
 
 	fsImpl := asFsImpl(t, st)
 
-	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't write temporary file")
 	require.Empty(t, tempFile)
@@ -598,7 +598,7 @@ func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
 
 	fsImpl := asFsImpl(t, st)
 
-	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't sync temporary file data")
 	require.Empty(t, tempFile)
@@ -631,7 +631,7 @@ func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
 
 	fsImpl := asFsImpl(t, st)
 
-	tempFile, err := fsImpl.createTempFileWithData(ctx, testPath, data)
+	tempFile, err := fsImpl.createTempFileWithData(testPath, data)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't close temporary file")
 	require.Empty(t, tempFile)

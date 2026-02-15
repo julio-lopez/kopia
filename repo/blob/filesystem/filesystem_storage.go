@@ -4,6 +4,7 @@ package filesystem
 import (
 	"context"
 	"crypto/rand"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -157,10 +158,10 @@ func (fs *fsImpl) GetMetadataFromPath(ctx context.Context, dirPath, path string)
 // createTempFileWithData creates a temporary file, writes data to it, syncs and closes it.
 // Returns the name of the temporary file and an error.
 // If there is an error writing, syncing, or closing the file, the temporary file is removed.
-func (fs *fsImpl) createTempFileWithData(ctx context.Context, path string, data blob.Bytes) (string, error) {
+func (fs *fsImpl) createTempFileWithData(path string, data blob.Bytes) (name string, err error) {
 	randSuffix := make([]byte, tempFileRandomSuffixLen)
 	if _, err := rand.Read(randSuffix); err != nil {
-		return "", errors.Wrap(err, "can't get random bytes")
+		return "", errors.Wrap(err, "can't get random bytes for temporary filename")
 	}
 
 	tempFile := fmt.Sprintf("%s.tmp.%x", path, randSuffix)
@@ -170,34 +171,28 @@ func (fs *fsImpl) createTempFileWithData(ctx context.Context, path string, data 
 		return "", errors.Wrap(err, "cannot create temporary file")
 	}
 
-	// If any of the following operations fail, we need to remove the temp file
-	if _, err = data.WriteTo(f); err != nil {
-		f.Close() //nolint:errcheck
-
-		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
-			log(ctx).Errorf("can't remove temp file after write error: %v", removeErr)
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			err = stderrors.Join(err, closeErr)
 		}
 
+		// remove temp file when any of the operations fail
+		if err != nil {
+			if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
+				err = stderrors.Join(err, errors.Wrap(removeErr, "can't remove temp file after error"))
+			}
+		}
+	}()
+
+	if _, err = data.WriteTo(f); err != nil {
 		return "", errors.Wrap(err, "can't write temporary file")
 	}
 
 	if err = f.Sync(); err != nil {
-		f.Close() //nolint:errcheck
-
-		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
-			log(ctx).Errorf("can't remove temp file after sync error: %v", removeErr)
-		}
-
 		return "", errors.Wrap(err, "can't sync temporary file data")
 	}
 
-	if err = f.Close(); err != nil {
-		if removeErr := fs.osi.Remove(tempFile); removeErr != nil {
-			log(ctx).Errorf("can't remove temp file after close error: %v", removeErr)
-		}
-
-		return "", errors.Wrap(err, "can't close temporary file")
-	}
+	// f closed in deferred cleanup function
 
 	return tempFile, nil
 }
@@ -214,7 +209,7 @@ func (fs *fsImpl) PutBlobInPath(ctx context.Context, dirPath, path string, data 
 	}
 
 	return retry.WithExponentialBackoffNoValue(ctx, "PutBlobInPath:"+path, func() error {
-		tempFile, err := fs.createTempFileWithData(ctx, path, data)
+		tempFile, err := fs.createTempFileWithData(path, data)
 		if err != nil {
 			return err
 		}
