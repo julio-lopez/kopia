@@ -522,15 +522,17 @@ func TestFileStorage_CreateTempFileWithData_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotEmpty(t, tempFile)
+
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove(tempFile))
+	})
+
 	require.Contains(t, tempFile, ".tmp.")
 
 	// Verify temp file exists and has correct content
 	content, err := os.ReadFile(tempFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2, 3, 4, 5}, content)
-
-	// Cleanup
-	os.Remove(tempFile)
 }
 
 func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
@@ -563,9 +565,9 @@ func TestFileStorage_CreateTempFileWithData_WriteError(t *testing.T) {
 	require.Contains(t, err.Error(), "can't write temporary file")
 	require.Empty(t, tempFile)
 
-	// Verify temp file was removed (doesn't exist)
-	// We can't check for specific file since we don't know the random suffix
-	// but the error should have occurred and the function should return empty string
+	// Verify temp file was removed (doesn't exist). There should be no other
+	// blobs with the same prefix, so listing blobs should return 0 entries.
+	verifyEmptyDir(t, filepath.Join(dataDir, "someb", "lo"))
 }
 
 func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
@@ -597,6 +599,8 @@ func TestFileStorage_CreateTempFileWithData_SyncError(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "can't sync temporary file data")
 	require.Empty(t, tempFile)
+
+	verifyEmptyDir(t, filepath.Join(dataDir, "someb", "lo"))
 }
 
 func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
@@ -629,4 +633,24 @@ func TestFileStorage_CreateTempFileWithData_CloseError(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "can't close temporary file")
 	require.Empty(t, tempFile)
+
+	verifyEmptyDir(t, filepath.Join(dataDir, "someb", "lo"))
+}
+
+func verifyEmptyDir(t *testing.T, dir string) {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+
+	require.NoError(t, err)
+
+	var blobCount uint
+
+	for _, e := range entries {
+		blobCount++
+
+		require.Fail(t, e.Name())
+	}
+
+	require.Zero(t, blobCount)
 }
