@@ -3,9 +3,12 @@
 package snapmeta
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kopia/kopia/internal/testlogging"
 )
 
 func TestKopiaConnector(t *testing.T) {
@@ -30,18 +33,19 @@ func TestKopiaConnector(t *testing.T) {
 
 	repoPath := "repoPath"
 	bucketName := "bucketName"
+	ctx := testlogging.Context(t)
 
 	t.Setenv(EngineModeEnvKey, EngineModeBasic)
 	t.Setenv(S3BucketNameEnvKey, "")
 	tc.reset()
-	require.NoError(tc.connectOrCreateRepo(repoPath))
+	require.NoError(tc.connectOrCreateRepo(ctx, repoPath))
 	require.True(tc.initFilesystemCalled)
 	require.Equal(repoPath, tc.tcRepoPath)
 
 	t.Setenv(EngineModeEnvKey, EngineModeBasic)
 	t.Setenv(S3BucketNameEnvKey, bucketName)
 	tc.reset()
-	require.NoError(tc.connectOrCreateRepo(repoPath))
+	require.NoError(tc.connectOrCreateRepo(ctx, repoPath))
 	require.True(tc.initS3Called)
 	require.Equal(repoPath, tc.tcRepoPath)
 	require.Equal(bucketName, tc.tcBucketName)
@@ -49,7 +53,7 @@ func TestKopiaConnector(t *testing.T) {
 	t.Setenv(EngineModeEnvKey, EngineModeServer)
 	t.Setenv(S3BucketNameEnvKey, "")
 	tc.reset()
-	require.NoError(tc.connectOrCreateRepo(repoPath))
+	require.NoError(tc.connectOrCreateRepo(ctx, repoPath))
 	require.True(tc.initFilesystemWithServerCalled)
 	require.Equal(repoPath, tc.tcRepoPath)
 	require.Equal(defaultAddr, tc.tcAddr)
@@ -57,7 +61,7 @@ func TestKopiaConnector(t *testing.T) {
 	t.Setenv(EngineModeEnvKey, EngineModeServer)
 	t.Setenv(S3BucketNameEnvKey, bucketName)
 	tc.reset()
-	require.NoError(tc.connectOrCreateRepo(repoPath))
+	require.NoError(tc.connectOrCreateRepo(ctx, repoPath))
 	require.True(tc.initS3WithServerCalled)
 	require.Equal(repoPath, tc.tcRepoPath)
 	require.Equal(bucketName, tc.tcBucketName)
@@ -85,7 +89,7 @@ func (tc *testConnector) reset() {
 	tc.initFilesystemWithServerCalled = false
 }
 
-func (tc *testConnector) testInitS3(repoPath, bucketName string) error {
+func (tc *testConnector) testInitS3(ctx context.Context, repoPath, bucketName string) error {
 	tc.tcRepoPath = repoPath
 	tc.tcBucketName = bucketName
 	tc.initS3Called = true
@@ -93,14 +97,14 @@ func (tc *testConnector) testInitS3(repoPath, bucketName string) error {
 	return nil
 }
 
-func (tc *testConnector) testInitFilesystem(repoPath string) error {
+func (tc *testConnector) testInitFilesystem(ctx context.Context, repoPath string) error {
 	tc.tcRepoPath = repoPath
 	tc.initFilesystemCalled = true
 
 	return nil
 }
 
-func (tc *testConnector) testInitS3WithServer(repoPath, bucketName, addr string) error {
+func (tc *testConnector) testInitS3WithServer(ctx context.Context, repoPath, bucketName, addr string) error {
 	tc.tcRepoPath = repoPath
 	tc.tcBucketName = bucketName
 	tc.tcAddr = addr
@@ -109,7 +113,7 @@ func (tc *testConnector) testInitS3WithServer(repoPath, bucketName, addr string)
 	return nil
 }
 
-func (tc *testConnector) testInitFilesystemWithServer(repoPath, addr string) error {
+func (tc *testConnector) testInitFilesystemWithServer(ctx context.Context, repoPath, addr string) error {
 	tc.tcRepoPath = repoPath
 	tc.tcAddr = addr
 	tc.initFilesystemWithServerCalled = true

@@ -3,6 +3,7 @@
 package snapmeta
 
 import (
+	"context"
 	"os"
 	"os/exec"
 
@@ -34,10 +35,10 @@ const (
 type kopiaConnector struct {
 	// properties set by initializeConnector()
 	snap                       *kopiarunner.KopiaSnapshotter
-	initS3Fn                   func(repoPath, bucketName string) error
-	initS3WithServerFn         func(repoPath, bucketName, addr string) error
-	initFilesystemFn           func(repoPath string) error
-	initFilesystemWithServerFn func(repoPath, addr string) error
+	initS3Fn                   func(ctx context.Context, repoPath, bucketName string) error
+	initS3WithServerFn         func(ctx context.Context, repoPath, bucketName, addr string) error
+	initFilesystemFn           func(ctx context.Context, repoPath string) error
+	initFilesystemWithServerFn func(ctx context.Context, repoPath, addr string) error
 
 	// properties that may be set by connectOrCreateRepo()
 	serverCmd         *exec.Cmd
@@ -63,38 +64,38 @@ func (ki *kopiaConnector) initializeConnector(baseDirPath string) error {
 
 // connectOrCreateRepo makes the connector ready for use.
 // It invokes the appropriate initialization routine based on the environment variables set.
-func (ki *kopiaConnector) connectOrCreateRepo(repoPath string) error {
+func (ki *kopiaConnector) connectOrCreateRepo(ctx context.Context, repoPath string) error {
 	bucketName := os.Getenv(S3BucketNameEnvKey)
 	engineMode := os.Getenv(EngineModeEnvKey)
 
 	switch {
 	case bucketName != "" && engineMode == EngineModeBasic:
-		return ki.initS3Fn(repoPath, bucketName)
+		return ki.initS3Fn(ctx, repoPath, bucketName)
 
 	case bucketName != "" && engineMode == EngineModeServer:
-		return ki.initS3WithServerFn(repoPath, bucketName, defaultAddr)
+		return ki.initS3WithServerFn(ctx, repoPath, bucketName, defaultAddr)
 
 	case bucketName == "" && engineMode == EngineModeServer:
-		return ki.initFilesystemWithServerFn(repoPath, defaultAddr)
+		return ki.initFilesystemWithServerFn(ctx, repoPath, defaultAddr)
 
 	default:
-		return ki.initFilesystemFn(repoPath)
+		return ki.initFilesystemFn(ctx, repoPath)
 	}
 }
 
 // initS3 initializes basic mode with an S3 repository.
-func (ki *kopiaConnector) initS3(repoPath, bucketName string) error {
-	return ki.snap.ConnectOrCreateS3(bucketName, repoPath)
+func (ki *kopiaConnector) initS3(ctx context.Context, repoPath, bucketName string) error {
+	return ki.snap.ConnectOrCreateS3(ctx, bucketName, repoPath)
 }
 
 // initFilesystem initializes basic mode with a filesystem repository.
-func (ki *kopiaConnector) initFilesystem(repoPath string) error {
-	return ki.snap.ConnectOrCreateFilesystem(repoPath)
+func (ki *kopiaConnector) initFilesystem(ctx context.Context, repoPath string) error {
+	return ki.snap.ConnectOrCreateFilesystem(ctx, repoPath)
 }
 
 // initS3WithServer initializes server mode with an S3 repository.
-func (ki *kopiaConnector) initS3WithServer(repoPath, bucketName, addr string) error {
-	cmd, fingerprint, err := ki.snap.ConnectOrCreateS3WithServer(addr, bucketName, repoPath)
+func (ki *kopiaConnector) initS3WithServer(ctx context.Context, repoPath, bucketName, addr string) error {
+	cmd, fingerprint, err := ki.snap.ConnectOrCreateS3WithServer(ctx, addr, bucketName, repoPath)
 	ki.serverCmd = cmd
 	ki.serverFingerprint = fingerprint
 
@@ -102,28 +103,28 @@ func (ki *kopiaConnector) initS3WithServer(repoPath, bucketName, addr string) er
 }
 
 // initFilesystemWithServer initializes server mode with a filesystem repository.
-func (ki *kopiaConnector) initFilesystemWithServer(repoPath, addr string) error {
-	cmd, fingerprint, err := ki.snap.ConnectOrCreateFilesystemWithServer(addr, repoPath)
+func (ki *kopiaConnector) initFilesystemWithServer(ctx context.Context, repoPath, addr string) error {
+	cmd, fingerprint, err := ki.snap.ConnectOrCreateFilesystemWithServer(ctx, addr, repoPath)
 	ki.serverCmd = cmd
 	ki.serverFingerprint = fingerprint
 
 	return err
 }
 
-func (ki *kopiaConnector) authorizeClient(user string) error {
-	if err := ki.snap.AuthorizeClient(user, defaultHost); err != nil {
+func (ki *kopiaConnector) authorizeClient(ctx context.Context, user string) error {
+	if err := ki.snap.AuthorizeClient(ctx, user, defaultHost); err != nil {
 		return err
 	}
 
-	if err := ki.snap.RefreshServer(defaultAddr, ki.serverFingerprint); err != nil {
+	if err := ki.snap.RefreshServer(ctx, defaultAddr, ki.serverFingerprint); err != nil {
 		return err
 	}
 
-	err := ki.snap.ListClients(defaultAddr, ki.serverFingerprint)
+	err := ki.snap.ListClients(ctx, defaultAddr, ki.serverFingerprint)
 
 	return err
 }
 
-func (ki *kopiaConnector) connectClient(fingerprint, user string) error {
-	return ki.snap.ConnectClient(defaultAddr, fingerprint, user, defaultHost)
+func (ki *kopiaConnector) connectClient(ctx context.Context, fingerprint, user string) error {
+	return ki.snap.ConnectClient(ctx, defaultAddr, fingerprint, user, defaultHost)
 }

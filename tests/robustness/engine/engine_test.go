@@ -376,7 +376,7 @@ func TestDataPersistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Flush the snapshot metadata to persistent storage
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	// Create a new engine
@@ -706,7 +706,7 @@ func TestStatsPersist(t *testing.T) {
 
 	require.NoError(t, err)
 
-	err = snapStore.ConnectOrCreateFilesystem(tmpDir)
+	err = snapStore.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
 	actionstats := &ActionStats{
@@ -733,17 +733,17 @@ func TestStatsPersist(t *testing.T) {
 	err = eng.saveStats(ctx)
 	require.NoError(t, err)
 
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	snapStoreNew, err := snapmeta.NewPersister(tmpDir)
 	require.NoError(t, err)
 
 	// Connect to the same metadata store
-	err = snapStoreNew.ConnectOrCreateFilesystem(tmpDir)
+	err = snapStoreNew.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
-	err = snapStoreNew.LoadMetadata()
+	err = snapStoreNew.LoadMetadata(ctx)
 	require.NoError(t, err)
 
 	engNew := &Engine{
@@ -776,7 +776,7 @@ func TestLogsPersist(t *testing.T) {
 
 	require.NoError(t, err)
 
-	err = snapStore.ConnectOrCreateFilesystem(tmpDir)
+	err = snapStore.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
 	logData := Log{
@@ -805,17 +805,17 @@ func TestLogsPersist(t *testing.T) {
 	err = eng.saveLog(ctx)
 	require.NoError(t, err)
 
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	snapStoreNew, err := snapmeta.NewPersister(tmpDir)
 	require.NoError(t, err)
 
 	// Connect to the same metadata store
-	err = snapStoreNew.ConnectOrCreateFilesystem(tmpDir)
+	err = snapStoreNew.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
-	err = snapStoreNew.LoadMetadata()
+	err = snapStoreNew.LoadMetadata(ctx)
 	require.NoError(t, err)
 
 	engNew := &Engine{
@@ -862,7 +862,7 @@ func newTestHarness(ctx context.Context, t *testing.T, dataRepoPath, metaRepoPat
 		return nil, nil, err
 	}
 
-	if err = th.ks.ConnectOrCreateRepo(dataRepoPath); err != nil {
+	if err = th.ks.ConnectOrCreateRepo(ctx, dataRepoPath); err != nil {
 		th.Cleanup(ctx)
 		return nil, nil, err
 	}
@@ -872,7 +872,7 @@ func newTestHarness(ctx context.Context, t *testing.T, dataRepoPath, metaRepoPat
 		return nil, nil, err
 	}
 
-	if err = th.kp.ConnectOrCreateRepo(metaRepoPath); err != nil {
+	if err = th.kp.ConnectOrCreateRepo(ctx, metaRepoPath); err != nil {
 		th.Cleanup(ctx)
 		return nil, nil, err
 	}

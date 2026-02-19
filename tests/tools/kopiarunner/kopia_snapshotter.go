@@ -65,7 +65,7 @@ func (ks *KopiaSnapshotter) Cleanup() {
 	}
 }
 
-func (ks *KopiaSnapshotter) repoConnectCreate(op string, args ...string) error {
+func (ks *KopiaSnapshotter) repoConnectCreate(ctx context.Context, op string, args ...string) error {
 	args = append([]string{"repo", op}, args...)
 
 	args = append(args,
@@ -74,67 +74,67 @@ func (ks *KopiaSnapshotter) repoConnectCreate(op string, args ...string) error {
 		noCheckForUpdatesFlag,
 	)
 
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // CreateRepo creates a kopia repository with the provided arguments.
-func (ks *KopiaSnapshotter) CreateRepo(args ...string) (err error) {
-	return ks.repoConnectCreate("create", args...)
+func (ks *KopiaSnapshotter) CreateRepo(ctx context.Context, args ...string) (err error) {
+	return ks.repoConnectCreate(ctx, "create", args...)
 }
 
 // ConnectRepo connects to the repository described by the provided arguments.
-func (ks *KopiaSnapshotter) ConnectRepo(args ...string) (err error) {
-	return ks.repoConnectCreate("connect", args...)
+func (ks *KopiaSnapshotter) ConnectRepo(ctx context.Context, args ...string) (err error) {
+	return ks.repoConnectCreate(ctx, "connect", args...)
 }
 
 // ConnectOrCreateRepo attempts to connect to a repo described by the provided
 // arguments, and attempts to create it if connection was unsuccessful.
-func (ks *KopiaSnapshotter) ConnectOrCreateRepo(args ...string) error {
-	err := ks.ConnectRepo(args...)
+func (ks *KopiaSnapshotter) ConnectOrCreateRepo(ctx context.Context, args ...string) error {
+	err := ks.ConnectRepo(ctx, args...)
 	if err == nil {
 		return nil
 	}
 
-	return ks.CreateRepo(args...)
+	return ks.CreateRepo(ctx, args...)
 }
 
 // ConnectOrCreateS3 attempts to connect to a kopia repo in the s3 bucket identified
 // by the provided bucketName, at the provided path prefix. It will attempt to
 // create one there if connection was unsuccessful.
-func (ks *KopiaSnapshotter) ConnectOrCreateS3(bucketName, pathPrefix string) error {
+func (ks *KopiaSnapshotter) ConnectOrCreateS3(ctx context.Context, bucketName, pathPrefix string) error {
 	args := []string{"s3", "--bucket", bucketName, "--prefix", pathPrefix}
 
-	return ks.ConnectOrCreateRepo(args...)
+	return ks.ConnectOrCreateRepo(ctx, args...)
 }
 
 // ConnectOrCreateS3WithServer attempts to connect or create S3 bucket, but with TLS client/server Model.
-func (ks *KopiaSnapshotter) ConnectOrCreateS3WithServer(serverAddr, bucketName, pathPrefix string) (*exec.Cmd, string, error) {
+func (ks *KopiaSnapshotter) ConnectOrCreateS3WithServer(ctx context.Context, serverAddr, bucketName, pathPrefix string) (*exec.Cmd, string, error) {
 	repoArgs := []string{"s3", "--bucket", bucketName, "--prefix", pathPrefix}
-	return ks.ConnectOrCreateRepoWithServer(serverAddr, repoArgs...)
+	return ks.ConnectOrCreateRepoWithServer(ctx, serverAddr, repoArgs...)
 }
 
 // ConnectOrCreateFilesystemWithServer attempts to connect or create repo in local filesystem,
 // but with TLS server/client Model.
-func (ks *KopiaSnapshotter) ConnectOrCreateFilesystemWithServer(serverAddr, repoPath string) (*exec.Cmd, string, error) {
+func (ks *KopiaSnapshotter) ConnectOrCreateFilesystemWithServer(ctx context.Context, serverAddr, repoPath string) (*exec.Cmd, string, error) {
 	repoArgs := []string{"filesystem", "--path", repoPath}
-	return ks.ConnectOrCreateRepoWithServer(serverAddr, repoArgs...)
+	return ks.ConnectOrCreateRepoWithServer(ctx, serverAddr, repoArgs...)
 }
 
 // ConnectOrCreateFilesystem attempts to connect to a kopia repo in the local
 // filesystem at the path provided. It will attempt to create one there if
 // connection was unsuccessful.
-func (ks *KopiaSnapshotter) ConnectOrCreateFilesystem(repoPath string) error {
+func (ks *KopiaSnapshotter) ConnectOrCreateFilesystem(ctx context.Context, repoPath string) error {
 	args := []string{"filesystem", "--path", repoPath}
 
-	return ks.ConnectOrCreateRepo(args...)
+	return ks.ConnectOrCreateRepo(ctx, args...)
 }
 
 // CreateSnapshot implements the Snapshotter interface, issues a kopia snapshot
 // create command on the provided source path.
-func (ks *KopiaSnapshotter) CreateSnapshot(source string) (snapID string, err error) {
-	stdOut, errOut, err := ks.Runner.Run("snapshot", "create", parallelFlag, strconv.Itoa(parallelSetting), noProgressFlag, source)
+func (ks *KopiaSnapshotter) CreateSnapshot(ctx context.Context, source string) (snapID string, err error) {
+	stdOut, errOut, err := ks.Runner.Run(ctx, "snapshot", "create", parallelFlag, strconv.Itoa(parallelSetting), noProgressFlag, source)
 	if err != nil {
 		return "", err
 	}
@@ -148,43 +148,43 @@ func (ks *KopiaSnapshotter) CreateSnapshot(source string) (snapID string, err er
 
 // RestoreSnapshot implements the Snapshotter interface, issues a kopia snapshot
 // restore command of the provided snapshot ID to the provided restore destination.
-func (ks *KopiaSnapshotter) RestoreSnapshot(snapID, restoreDir string) (err error) {
-	_, _, err = ks.Runner.Run("snapshot", "restore", snapID, restoreDir)
+func (ks *KopiaSnapshotter) RestoreSnapshot(ctx context.Context, snapID, restoreDir string) (err error) {
+	_, _, err = ks.Runner.Run(ctx, "snapshot", "restore", snapID, restoreDir)
 	return err
 }
 
 // VerifySnapshot implements the Snapshotter interface to verify a kopia snapshot corruption
 // verify command of args to the provided parameters such as --verify-files-percent.
-func (ks *KopiaSnapshotter) VerifySnapshot(args ...string) (err error) {
+func (ks *KopiaSnapshotter) VerifySnapshot(ctx context.Context, args ...string) (err error) {
 	args = append([]string{"snapshot", "verify"}, args...)
-	_, _, err = ks.Runner.Run(args...)
+	_, _, err = ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // DeleteSnapshot implements the Snapshotter interface, issues a kopia snapshot
 // delete of the provided snapshot ID.
-func (ks *KopiaSnapshotter) DeleteSnapshot(snapID string) (err error) {
-	_, _, err = ks.Runner.Run("snapshot", "delete", snapID, "--delete")
+func (ks *KopiaSnapshotter) DeleteSnapshot(ctx context.Context, snapID string) (err error) {
+	_, _, err = ks.Runner.Run(ctx, "snapshot", "delete", snapID, "--delete")
 	return err
 }
 
 // RunGC implements the Snapshotter interface, issues a gc command to the kopia repo.
-func (ks *KopiaSnapshotter) RunGC() (err error) {
-	_, _, err = ks.Runner.Run("maintenance", "run", "--full")
+func (ks *KopiaSnapshotter) RunGC(ctx context.Context) (err error) {
+	_, _, err = ks.Runner.Run(ctx, "maintenance", "run", "--full")
 	return err
 }
 
 // ListSnapshots implements the Snapshotter interface, issues a kopia snapshot
 // list and parses the snapshot IDs.
-func (ks *KopiaSnapshotter) ListSnapshots() ([]string, error) {
-	snapIDListMan, err := ks.snapIDsFromManifestList()
+func (ks *KopiaSnapshotter) ListSnapshots(ctx context.Context) ([]string, error) {
+	snapIDListMan, err := ks.snapIDsFromManifestList(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate the list against kopia snapshot list --all
-	snapIDListSnap, err := ks.snapIDsFromSnapListAll()
+	snapIDListSnap, err := ks.snapIDsFromSnapListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +196,8 @@ func (ks *KopiaSnapshotter) ListSnapshots() ([]string, error) {
 	return snapIDListMan, nil
 }
 
-func (ks *KopiaSnapshotter) snapIDsFromManifestList() ([]string, error) {
-	stdout, _, err := ks.Runner.Run("manifest", "list")
+func (ks *KopiaSnapshotter) snapIDsFromManifestList(ctx context.Context) ([]string, error) {
+	stdout, _, err := ks.Runner.Run(ctx, "manifest", "list")
 	if err != nil {
 		return nil, errors.Wrap(err, "failure during kopia manifest list")
 	}
@@ -205,9 +205,9 @@ func (ks *KopiaSnapshotter) snapIDsFromManifestList() ([]string, error) {
 	return parseManifestListForSnapshotIDs(stdout), nil
 }
 
-func (ks *KopiaSnapshotter) snapIDsFromSnapListAll() ([]string, error) {
+func (ks *KopiaSnapshotter) snapIDsFromSnapListAll(ctx context.Context) ([]string, error) {
 	// Validate the list against kopia snapshot list --all
-	stdout, _, err := ks.Runner.Run("snapshot", "list", "--all", "--manifest-id", "--show-identical")
+	stdout, _, err := ks.Runner.Run(ctx, "snapshot", "list", "--all", "--manifest-id", "--show-identical")
 	if err != nil {
 		return nil, errors.Wrap(err, "failure during kopia snapshot list")
 	}
@@ -217,8 +217,8 @@ func (ks *KopiaSnapshotter) snapIDsFromSnapListAll() ([]string, error) {
 
 // Run implements the Snapshotter interface, issues an arbitrary kopia command and returns
 // the output.
-func (ks *KopiaSnapshotter) Run(args ...string) (stdout, stderr string, err error) {
-	return ks.Runner.Run(args...)
+func (ks *KopiaSnapshotter) Run(ctx context.Context, args ...string) (stdout, stderr string, err error) {
+	return ks.Runner.Run(ctx, args...)
 }
 
 // CreateServer creates a new instance of Kopia Server with provided address.
@@ -233,38 +233,38 @@ func (ks *KopiaSnapshotter) CreateServer(addr string, args ...string) (*exec.Cmd
 }
 
 // AuthorizeClient adds a client to the server's user list.
-func (ks *KopiaSnapshotter) AuthorizeClient(user, host string, args ...string) error {
+func (ks *KopiaSnapshotter) AuthorizeClient(ctx context.Context, user, host string, args ...string) error {
 	args = append([]string{
 		"server", "user", "add",
 		user + "@" + host,
 		"--user-password", repoPassword,
 	}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // RemoveClient removes a client from the server's user list.
-func (ks *KopiaSnapshotter) RemoveClient(user, host string, args ...string) error {
+func (ks *KopiaSnapshotter) RemoveClient(ctx context.Context, user, host string, args ...string) error {
 	args = append([]string{
 		"server", "user", "delete",
 		user + "@" + host,
 	}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // DisconnectClient should be called by a client to disconnect itself from the server.
-func (ks *KopiaSnapshotter) DisconnectClient(args ...string) error {
+func (ks *KopiaSnapshotter) DisconnectClient(ctx context.Context, args ...string) error {
 	args = append([]string{"repo", "disconnect"}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // RefreshServer refreshes the server at the given address.
-func (ks *KopiaSnapshotter) RefreshServer(addr, fingerprint string, args ...string) error {
+func (ks *KopiaSnapshotter) RefreshServer(ctx context.Context, addr, fingerprint string, args ...string) error {
 	addr = fmt.Sprintf("https://%v", addr)
 	args = append([]string{
 		"server", "refresh",
@@ -272,22 +272,22 @@ func (ks *KopiaSnapshotter) RefreshServer(addr, fingerprint string, args ...stri
 		"--server-cert-fingerprint", fingerprint,
 		"--server-control-password", serverControlPassword,
 	}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // ListClients lists the clients that are registered with the Kopia server.
-func (ks *KopiaSnapshotter) ListClients(addr, fingerprint string, args ...string) error {
+func (ks *KopiaSnapshotter) ListClients(ctx context.Context, addr, fingerprint string, args ...string) error {
 	args = append([]string{"server", "user", "list"}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
 
 // ConnectClient connects a given client to the server at the given address using the
 // given cert fingerprint.
-func (ks *KopiaSnapshotter) ConnectClient(addr, fingerprint, user, host string, args ...string) error {
+func (ks *KopiaSnapshotter) ConnectClient(ctx context.Context, addr, fingerprint, user, host string, args ...string) error {
 	addr = fmt.Sprintf("https://%v", addr)
 	args = append([]string{
 		"repo", "connect", "server",
@@ -296,7 +296,7 @@ func (ks *KopiaSnapshotter) ConnectClient(addr, fingerprint, user, host string, 
 		"--override-username", user,
 		"--override-hostname", host,
 	}, args...)
-	_, _, err := ks.Runner.Run(args...)
+	_, _, err := ks.Runner.Run(ctx, args...)
 
 	return err
 }
@@ -360,7 +360,7 @@ func (ks *KopiaSnapshotter) waitUntilServerStarted(ctx context.Context, addr, fi
 	}, serverStatusArgs...)
 
 	if err := retry.PeriodicallyNoValue(ctx, retryInterval, retryCount, waitingForServerString, func() error {
-		_, _, err := ks.Runner.Run(statusArgs...)
+		_, _, err := ks.Runner.Run(ctx, statusArgs...)
 		return err
 	}, retry.Always); err != nil {
 		return errors.New("server failed to start")
@@ -370,8 +370,8 @@ func (ks *KopiaSnapshotter) waitUntilServerStarted(ctx context.Context, addr, fi
 }
 
 // ConnectOrCreateRepoWithServer creates Repository and a TLS server/client model for interaction.
-func (ks *KopiaSnapshotter) ConnectOrCreateRepoWithServer(serverAddr string, args ...string) (*exec.Cmd, string, error) {
-	if err := ks.ConnectOrCreateRepo(args...); err != nil {
+func (ks *KopiaSnapshotter) ConnectOrCreateRepoWithServer(ctx context.Context, serverAddr string, args ...string) (*exec.Cmd, string, error) {
+	if err := ks.ConnectOrCreateRepo(ctx, args...); err != nil {
 		return nil, "", err
 	}
 
@@ -418,22 +418,22 @@ func (ks *KopiaSnapshotter) ConnectOrCreateRepoWithServer(serverAddr string, arg
 	}
 
 	serverAddr = fmt.Sprintf("https://%v", serverAddr)
-	if err := ks.waitUntilServerStarted(context.TODO(), serverAddr, fingerprint); err != nil {
+	if err := ks.waitUntilServerStarted(ctx, serverAddr, fingerprint); err != nil {
 		return cmd, "", err
 	}
 
 	// Enable ACL and add a rule to allow all clients to access all snapshots
-	err := ks.setServerPermissions()
+	err := ks.setServerPermissions(ctx)
 
 	return cmd, fingerprint, err
 }
 
-func (ks *KopiaSnapshotter) setServerPermissions(args ...string) error {
+func (ks *KopiaSnapshotter) setServerPermissions(ctx context.Context, args ...string) error {
 	runArgs := append([]string{"server", "acl", "enable"}, args...)
 
 	// Return early if ACL is already enabled, assuming permissions have already
 	// been set on previous runs.
-	_, stdErr, err := ks.Runner.Run(runArgs...)
+	_, stdErr, err := ks.Runner.Run(ctx, runArgs...)
 	if errIsACLEnabled(stdErr) {
 		return nil
 	}
@@ -450,13 +450,13 @@ func (ks *KopiaSnapshotter) setServerPermissions(args ...string) error {
 		"--target", "type=snapshot",
 	}, args...)
 
-	_, _, err = ks.Runner.Run(runArgs...)
+	_, _, err = ks.Runner.Run(ctx, runArgs...)
 	if err != nil {
 		return err
 	}
 
 	runArgs = append([]string{"server", "acl", "list"}, args...)
-	_, _, err = ks.Runner.Run(runArgs...)
+	_, _, err = ks.Runner.Run(ctx, runArgs...)
 
 	return err
 }

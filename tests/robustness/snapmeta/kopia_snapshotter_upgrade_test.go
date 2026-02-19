@@ -3,6 +3,7 @@
 package snapmeta
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -20,10 +21,11 @@ func TestGetRepositoryStatus(t *testing.T) {
 		t.Skip("KOPIA_EXE not set, skipping test")
 	}
 
-	err = ks.ConnectOrCreateRepo(repoDir)
+	ctx := context.Background()
+	err = ks.ConnectOrCreateRepo(ctx, repoDir)
 	require.NoError(t, err)
 
-	rs, err := ks.GetRepositoryStatus()
+	rs, err := ks.GetRepositoryStatus(ctx)
 	require.NoError(t, err)
 
 	prev := rs.ContentFormat.Version

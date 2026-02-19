@@ -16,7 +16,7 @@ type Store interface {
 // to, and load it again, from a repository.
 type Persister interface {
 	Store
-	LoadMetadata() error
-	FlushMetadata() error
+	LoadMetadata(ctx context.Context) error
+	FlushMetadata(ctx context.Context) error
 	GetPersistDir() string
 }

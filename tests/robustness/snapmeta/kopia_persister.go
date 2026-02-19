@@ -4,6 +4,7 @@
 package snapmeta
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -53,19 +54,19 @@ func NewPersister(baseDir string) (*KopiaPersister, error) {
 
 // persisterInitS3WithServer is an adaptor for initS3() as the persister
 // does not support the server configuration.
-func (store *KopiaPersister) persisterInitS3WithServer(repoPath, bucketName, addr string) error {
-	return store.initS3(repoPath, bucketName)
+func (store *KopiaPersister) persisterInitS3WithServer(ctx context.Context, repoPath, bucketName, addr string) error {
+	return store.initS3(ctx, repoPath, bucketName)
 }
 
 // persisterInitFilesystemWithServer is an adaptor for initFilesystem() as the persister
 // does not support the server configuration.
-func (store *KopiaPersister) persisterInitFilesystemWithServer(repoPath, addr string) error {
-	return store.initFilesystem(repoPath)
+func (store *KopiaPersister) persisterInitFilesystemWithServer(ctx context.Context, repoPath, addr string) error {
+	return store.initFilesystem(ctx, repoPath)
 }
 
 // ConnectOrCreateRepo makes the Persister ready for use.
-func (store *KopiaPersister) ConnectOrCreateRepo(repoPath string) error {
-	return store.connectOrCreateRepo(repoPath)
+func (store *KopiaPersister) ConnectOrCreateRepo(ctx context.Context, repoPath string) error {
+	return store.connectOrCreateRepo(ctx, repoPath)
 }
 
 // Cleanup cleans up the local temporary files used by a KopiaMetadata.
@@ -81,35 +82,35 @@ func (store *KopiaPersister) Cleanup() {
 
 // ConnectOrCreateS3 implements the RepoManager interface, connects to a repo in an S3
 // bucket or attempts to create one if connection is unsuccessful.
-func (store *KopiaPersister) ConnectOrCreateS3(bucketName, pathPrefix string) error {
-	return store.snap.ConnectOrCreateS3(bucketName, pathPrefix)
+func (store *KopiaPersister) ConnectOrCreateS3(ctx context.Context, bucketName, pathPrefix string) error {
+	return store.snap.ConnectOrCreateS3(ctx, bucketName, pathPrefix)
 }
 
 // ConnectOrCreateFilesystem implements the RepoManager interface, connects to a repo in the filesystem
 // or attempts to create one if connection is unsuccessful.
-func (store *KopiaPersister) ConnectOrCreateFilesystem(path string) error {
-	return store.snap.ConnectOrCreateFilesystem(path)
+func (store *KopiaPersister) ConnectOrCreateFilesystem(ctx context.Context, path string) error {
+	return store.snap.ConnectOrCreateFilesystem(ctx, path)
 }
 
 const metadataStoreFileName = "metadata-store-latest"
 
 // ConnectOrCreateS3WithServer implements the RepoManager interface, creates a server
 // connects it a repo in an S3 bucket and creates a client to perform operations.
-func (store *KopiaPersister) ConnectOrCreateS3WithServer(serverAddr, bucketName, pathPrefix string) (*exec.Cmd, string, error) {
-	return store.snap.ConnectOrCreateS3WithServer(serverAddr, bucketName, pathPrefix)
+func (store *KopiaPersister) ConnectOrCreateS3WithServer(ctx context.Context, serverAddr, bucketName, pathPrefix string) (*exec.Cmd, string, error) {
+	return store.snap.ConnectOrCreateS3WithServer(ctx, serverAddr, bucketName, pathPrefix)
 }
 
 // ConnectOrCreateFilesystemWithServer implements the RepoManager interface, creates a server
 // connects it a repo in the filesystem and creates a client to perform operations.
-func (store *KopiaPersister) ConnectOrCreateFilesystemWithServer(repoPath, serverAddr string) (*exec.Cmd, string, error) {
-	return store.snap.ConnectOrCreateFilesystemWithServer(repoPath, serverAddr)
+func (store *KopiaPersister) ConnectOrCreateFilesystemWithServer(ctx context.Context, repoPath, serverAddr string) (*exec.Cmd, string, error) {
+	return store.snap.ConnectOrCreateFilesystemWithServer(ctx, repoPath, serverAddr)
 }
 
 // LoadMetadata implements the DataPersister interface, restores the latest
 // snapshot from the kopia repository and decodes its contents, populating
 // its metadata on the snapshots residing in the target test repository.
-func (store *KopiaPersister) LoadMetadata() error {
-	snapIDs, err := store.snap.ListSnapshots()
+func (store *KopiaPersister) LoadMetadata(ctx context.Context) error {
+	snapIDs, err := store.snap.ListSnapshots(ctx)
 	if err != nil {
 		return err
 	}
@@ -120,7 +121,7 @@ func (store *KopiaPersister) LoadMetadata() error {
 
 	lastSnapID := snapIDs[len(snapIDs)-1]
 
-	err = store.snap.RestoreSnapshot(lastSnapID, store.persistenceDir)
+	err = store.snap.RestoreSnapshot(ctx, lastSnapID, store.persistenceDir)
 	if err != nil {
 		return err
 	}
@@ -151,7 +152,7 @@ func (store *KopiaPersister) GetPersistDir() string {
 // FlushMetadata implements the DataPersister interface, flushing the local
 // metadata on the target test repo's snapshots to the metadata Kopia repository
 // as a snapshot create.
-func (store *KopiaPersister) FlushMetadata() error {
+func (store *KopiaPersister) FlushMetadata(ctx context.Context) error {
 	metadataPath := filepath.Join(store.persistenceDir, metadataStoreFileName)
 
 	f, err := os.Create(metadataPath)
@@ -169,7 +170,7 @@ func (store *KopiaPersister) FlushMetadata() error {
 		return err
 	}
 
-	_, err = store.snap.CreateSnapshot(store.persistenceDir)
+	_, err = store.snap.CreateSnapshot(ctx, store.persistenceDir)
 	if err != nil {
 		return err
 	}

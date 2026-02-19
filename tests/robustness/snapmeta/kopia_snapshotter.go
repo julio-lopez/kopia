@@ -42,38 +42,38 @@ func NewSnapshotter(baseDirPath string) (*KopiaSnapshotter, error) {
 }
 
 // ConnectOrCreateRepo makes the Snapshotter ready for use.
-func (ks *KopiaSnapshotter) ConnectOrCreateRepo(repoPath string) error {
-	if err := ks.connectOrCreateRepo(repoPath); err != nil {
+func (ks *KopiaSnapshotter) ConnectOrCreateRepo(ctx context.Context, repoPath string) error {
+	if err := ks.connectOrCreateRepo(ctx, repoPath); err != nil {
 		return err
 	}
 
-	_, _, err := ks.snap.Run("policy", "set", "--global", "--keep-latest", strconv.Itoa(1<<31-1), "--compression", "s2-default")
+	_, _, err := ks.snap.Run(ctx, "policy", "set", "--global", "--keep-latest", strconv.Itoa(1<<31-1), "--compression", "s2-default")
 
 	return err
 }
 
 // ConnectClient should be called by a client to connect itself to the server
 // using the given cert fingerprint.
-func (ks *KopiaSnapshotter) ConnectClient(fingerprint, user string) error {
-	return ks.connectClient(fingerprint, user)
+func (ks *KopiaSnapshotter) ConnectClient(ctx context.Context, fingerprint, user string) error {
+	return ks.connectClient(ctx, fingerprint, user)
 }
 
 // DisconnectClient should be called by a client to disconnect itself from the server.
-func (ks *KopiaSnapshotter) DisconnectClient(user string) {
-	if err := ks.snap.DisconnectClient(); err != nil {
+func (ks *KopiaSnapshotter) DisconnectClient(ctx context.Context, user string) {
+	if err := ks.snap.DisconnectClient(ctx); err != nil {
 		log.Printf("Error disconnecting %s from server: %v\n", user, err)
 	}
 }
 
 // AuthorizeClient should be called by a server to add a client to the server's
 // user list.
-func (ks *KopiaSnapshotter) AuthorizeClient(user string) error {
-	return ks.authorizeClient(user)
+func (ks *KopiaSnapshotter) AuthorizeClient(ctx context.Context, user string) error {
+	return ks.authorizeClient(ctx, user)
 }
 
 // RemoveClient should be called by a server to remove a client from its user list.
-func (ks *KopiaSnapshotter) RemoveClient(user string) {
-	if err := ks.snap.RemoveClient(user, defaultHost); err != nil {
+func (ks *KopiaSnapshotter) RemoveClient(ctx context.Context, user string) {
+	if err := ks.snap.RemoveClient(ctx, user, defaultHost); err != nil {
 		log.Printf("Error removing %s from server: %v\n", user, err)
 	}
 }
@@ -97,7 +97,7 @@ func (ks *KopiaSnapshotter) CreateSnapshot(ctx context.Context, sourceDir string
 
 	ssStart := clock.Now()
 
-	snapID, err = ks.snap.CreateSnapshot(sourceDir)
+	snapID, err = ks.snap.CreateSnapshot(ctx, sourceDir)
 	if err != nil {
 		return snapID, fingerprint, snapStats, err
 	}
@@ -115,7 +115,7 @@ func (ks *KopiaSnapshotter) CreateSnapshot(ctx context.Context, sourceDir string
 // RestoreSnapshot restores the snapshot with the given ID to the provided restore directory. It returns
 // fingerprint verification data of the restored snapshot directory.
 func (ks *KopiaSnapshotter) RestoreSnapshot(ctx context.Context, snapID, restoreDir string, opts map[string]string) (fingerprint []byte, err error) {
-	err = ks.snap.RestoreSnapshot(snapID, restoreDir)
+	err = ks.snap.RestoreSnapshot(ctx, snapID, restoreDir)
 	if err != nil {
 		return fingerprint, err
 	}
@@ -126,7 +126,7 @@ func (ks *KopiaSnapshotter) RestoreSnapshot(ctx context.Context, snapID, restore
 // RestoreSnapshotCompare restores the snapshot with the given ID to the provided restore directory, then verifies the data
 // that has been restored against the provided fingerprint validation data.
 func (ks *KopiaSnapshotter) RestoreSnapshotCompare(ctx context.Context, snapID, restoreDir string, validationData []byte, reportOut io.Writer, opts map[string]string) (err error) {
-	err = ks.snap.RestoreSnapshot(snapID, restoreDir)
+	err = ks.snap.RestoreSnapshot(ctx, snapID, restoreDir)
 	if err != nil {
 		return err
 	}
@@ -136,22 +136,22 @@ func (ks *KopiaSnapshotter) RestoreSnapshotCompare(ctx context.Context, snapID, 
 
 // DeleteSnapshot is part of Snapshotter.
 func (ks *KopiaSnapshotter) DeleteSnapshot(ctx context.Context, snapID string, opts map[string]string) error {
-	return ks.snap.DeleteSnapshot(snapID)
+	return ks.snap.DeleteSnapshot(ctx, snapID)
 }
 
 // RunGC is part of Snapshotter.
 func (ks *KopiaSnapshotter) RunGC(ctx context.Context, opts map[string]string) error {
-	return ks.snap.RunGC()
+	return ks.snap.RunGC(ctx)
 }
 
 // ListSnapshots is part of Snapshotter.
 func (ks *KopiaSnapshotter) ListSnapshots(ctx context.Context) ([]string, error) {
-	return ks.snap.ListSnapshots()
+	return ks.snap.ListSnapshots(ctx)
 }
 
 // Run is part of Snapshotter.
-func (ks *KopiaSnapshotter) Run(args ...string) (stdout, stderr string, err error) {
-	return ks.snap.Run(args...)
+func (ks *KopiaSnapshotter) Run(ctx context.Context, args ...string) (stdout, stderr string, err error) {
+	return ks.snap.Run(ctx, args...)
 }
 
 // ConnectOrCreateS3 TBD: remove this.
@@ -182,10 +182,10 @@ func (ks *KopiaSnapshotter) Cleanup() {
 }
 
 // GetRepositoryStatus returns the repository status in JSON format.
-func (ks *KopiaSnapshotter) GetRepositoryStatus() (cli.RepositoryStatus, error) {
+func (ks *KopiaSnapshotter) GetRepositoryStatus(ctx context.Context) (cli.RepositoryStatus, error) {
 	var rs cli.RepositoryStatus
 
-	a1, _, err := ks.snap.Run("repository", "status", "--json")
+	a1, _, err := ks.snap.Run(ctx, "repository", "status", "--json")
 	if err != nil {
 		return rs, err
 	}
@@ -199,12 +199,12 @@ func (ks *KopiaSnapshotter) GetRepositoryStatus() (cli.RepositoryStatus, error) 
 
 // UpgradeRepository upgrades the given kopia repository
 // from current format version to latest stable format version.
-func (ks *KopiaSnapshotter) UpgradeRepository() error {
+func (ks *KopiaSnapshotter) UpgradeRepository(ctx context.Context) error {
 	// This variable is also reset in cleanup function
 	// in case the test fails
 	os.Setenv("KOPIA_UPGRADE_LOCK_ENABLED", "1")
 
-	_, _, err := ks.snap.Run("repository", "upgrade", "begin",
+	_, _, err := ks.snap.Run(ctx, "repository", "upgrade", "begin",
 		"--upgrade-owner-id", "robustness-tests",
 		"--io-drain-timeout", "30s", "--allow-unsafe-upgrade",
 		"--status-poll-interval", "1s")

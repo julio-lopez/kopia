@@ -150,7 +150,7 @@ func (e *Engine) Shutdown(ctx context.Context) error {
 			return err
 		}
 
-		return e.MetaStore.FlushMetadata()
+		return e.MetaStore.FlushMetadata(ctx)
 	}
 
 	return nil
@@ -189,7 +189,7 @@ func (e *Engine) cleanComponents() {
 
 // Init initializes the Engine and performs a consistency check.
 func (e *Engine) Init(ctx context.Context) error {
-	err := e.MetaStore.LoadMetadata()
+	err := e.MetaStore.LoadMetadata(ctx)
 	if err != nil {
 		return err
 	}
