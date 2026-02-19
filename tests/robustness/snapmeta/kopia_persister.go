@@ -109,8 +109,7 @@ func (store *KopiaPersister) ConnectOrCreateFilesystemWithServer(ctx context.Con
 // LoadMetadata implements the DataPersister interface, restores the latest
 // snapshot from the kopia repository and decodes its contents, populating
 // its metadata on the snapshots residing in the target test repository.
-func (store *KopiaPersister) LoadMetadata() error {
-	ctx := context.Background()
+func (store *KopiaPersister) LoadMetadata(ctx context.Context) error {
 	snapIDs, err := store.snap.ListSnapshots(ctx)
 	if err != nil {
 		return err
@@ -153,7 +152,7 @@ func (store *KopiaPersister) GetPersistDir() string {
 // FlushMetadata implements the DataPersister interface, flushing the local
 // metadata on the target test repo's snapshots to the metadata Kopia repository
 // as a snapshot create.
-func (store *KopiaPersister) FlushMetadata() error {
+func (store *KopiaPersister) FlushMetadata(ctx context.Context) error {
 	metadataPath := filepath.Join(store.persistenceDir, metadataStoreFileName)
 
 	f, err := os.Create(metadataPath)
@@ -171,7 +170,6 @@ func (store *KopiaPersister) FlushMetadata() error {
 		return err
 	}
 
-	ctx := context.Background()
 	_, err = store.snap.CreateSnapshot(ctx, store.persistenceDir)
 	if err != nil {
 		return err

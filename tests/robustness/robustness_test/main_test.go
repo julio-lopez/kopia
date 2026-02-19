@@ -56,7 +56,6 @@ func TestMain(m *testing.M) {
 	if os.Getenv("UPGRADE_REPOSITORY_FORMAT_VERSION") == "ON" {
 		log.Print("Upgrading the repository.")
 
-		ctx := context.Background()
 		rs, err := th.snapshotter.GetRepositoryStatus(ctx)
 		exitOnError("failed to get repository status before upgrade", err)
 
@@ -103,7 +102,7 @@ func (th *kopiaRobustnessTestHarness) init(ctx context.Context, dataRepoPath, me
 	th.metaRepoPath = metaRepoPath
 
 	// the initialization state machine is linear and bails out on first failure
-	if th.makeBaseDir() && th.getFileWriter() && th.getSnapshotter() &&
+	if th.makeBaseDir() && th.getFileWriter() && th.getSnapshotter(ctx) &&
 		th.getPersister() && th.getEngine() && th.getUpgrader() {
 		return // success!
 	}
@@ -148,7 +147,7 @@ func (th *kopiaRobustnessTestHarness) getFileWriter() bool {
 	return true
 }
 
-func (th *kopiaRobustnessTestHarness) getSnapshotter() bool {
+func (th *kopiaRobustnessTestHarness) getSnapshotter(ctx context.Context) bool {
 	ks, err := snapmeta.NewSnapshotter(th.baseDirPath)
 	if err != nil {
 		if errors.Is(err, kopiarunner.ErrExeVariableNotSet) {
@@ -164,7 +163,6 @@ func (th *kopiaRobustnessTestHarness) getSnapshotter() bool {
 
 	th.snapshotter = ks
 
-	ctx := context.Background()
 	if err = ks.ConnectOrCreateRepo(ctx, th.dataRepoPath); err != nil {
 		log.Println("Error initializing kopia Snapshotter:", err)
 		return false

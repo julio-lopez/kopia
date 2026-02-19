@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kopia/kopia/internal/testlogging"
 )
 
 func TestKopiaConnector(t *testing.T) {
@@ -31,7 +33,7 @@ func TestKopiaConnector(t *testing.T) {
 
 	repoPath := "repoPath"
 	bucketName := "bucketName"
-	ctx := context.Background()
+	ctx := testlogging.Context(t)
 
 	t.Setenv(EngineModeEnvKey, EngineModeBasic)
 	t.Setenv(S3BucketNameEnvKey, "")

@@ -376,7 +376,7 @@ func TestDataPersistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Flush the snapshot metadata to persistent storage
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	// Create a new engine
@@ -733,7 +733,7 @@ func TestStatsPersist(t *testing.T) {
 	err = eng.saveStats(ctx)
 	require.NoError(t, err)
 
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	snapStoreNew, err := snapmeta.NewPersister(tmpDir)
@@ -743,7 +743,7 @@ func TestStatsPersist(t *testing.T) {
 	err = snapStoreNew.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
-	err = snapStoreNew.LoadMetadata()
+	err = snapStoreNew.LoadMetadata(ctx)
 	require.NoError(t, err)
 
 	engNew := &Engine{
@@ -805,7 +805,7 @@ func TestLogsPersist(t *testing.T) {
 	err = eng.saveLog(ctx)
 	require.NoError(t, err)
 
-	err = eng.MetaStore.FlushMetadata()
+	err = eng.MetaStore.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	snapStoreNew, err := snapmeta.NewPersister(tmpDir)
@@ -815,7 +815,7 @@ func TestLogsPersist(t *testing.T) {
 	err = snapStoreNew.ConnectOrCreateFilesystem(ctx, tmpDir)
 	require.NoError(t, err)
 
-	err = snapStoreNew.LoadMetadata()
+	err = snapStoreNew.LoadMetadata(ctx)
 	require.NoError(t, err)
 
 	engNew := &Engine{

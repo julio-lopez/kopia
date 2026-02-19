@@ -89,9 +89,9 @@ func TestPersistence(t *testing.T) {
 	require.NotEmpty(t, persistDir, "could not get persistence directory")
 
 	// These are no-ops and should always succeed.
-	err := kpl.LoadMetadata()
+	err := kpl.LoadMetadata(ctx)
 	require.NoError(t, err)
-	err = kpl.FlushMetadata()
+	err = kpl.FlushMetadata(ctx)
 	require.NoError(t, err)
 
 	// Store and cleanup kpl

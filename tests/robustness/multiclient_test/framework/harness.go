@@ -75,7 +75,7 @@ func (th *TestHarness) init(ctx context.Context) {
 	}
 
 	// the initialization state machine is linear and bails out on first failure
-	if th.makeBaseDir() && th.getFileWriter() && th.getSnapshotter() &&
+	if th.makeBaseDir() && th.getFileWriter() && th.getSnapshotter(ctx) &&
 		th.getPersister() && th.getEngine(ctx) {
 		return // success!
 	}
@@ -123,7 +123,7 @@ func (th *TestHarness) getFileWriter() bool {
 	return true
 }
 
-func (th *TestHarness) getSnapshotter() bool {
+func (th *TestHarness) getSnapshotter(ctx context.Context) bool {
 	newClientFn := func(baseDirPath string) (ClientSnapshotter, error) {
 		return snapmeta.NewSnapshotter(th.baseDirPath)
 	}
@@ -143,7 +143,6 @@ func (th *TestHarness) getSnapshotter() bool {
 
 	th.snapshotter = s
 
-	ctx := context.Background()
 	if err = s.ConnectOrCreateRepo(ctx, th.dataRepoPath); err != nil {
 		log.Println("Error initializing kopia Snapshotter:", err)
 

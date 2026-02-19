@@ -88,12 +88,12 @@ func (kpl *KopiaPersisterLight) Delete(ctx context.Context, key string) error {
 }
 
 // LoadMetadata is a no-op. It is included to satisfy the Persister interface.
-func (kpl *KopiaPersisterLight) LoadMetadata() error {
+func (kpl *KopiaPersisterLight) LoadMetadata(ctx context.Context) error {
 	return nil
 }
 
 // FlushMetadata is a no-op. It is included to satisfy the Persister interface.
-func (kpl *KopiaPersisterLight) FlushMetadata() error {
+func (kpl *KopiaPersisterLight) FlushMetadata(ctx context.Context) error {
 	return nil
 }
 
