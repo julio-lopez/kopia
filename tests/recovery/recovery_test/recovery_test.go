@@ -69,7 +69,6 @@ func TestSnapshotFix(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	ctx := testlogging.Context(t)
 	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
@@ -149,7 +148,6 @@ func TestSnapshotFixInvalidFiles(t *testing.T) {
 
 	// delete random blob
 	// assumption: the repo contains "p" blobs to delete, else the test will fail
-	ctx := testlogging.Context(t)
 	err = bm.DeleteBlob(ctx, "")
 	if err != nil {
 		log.Println("Error deleting kopia blob: ", err)
@@ -233,7 +231,6 @@ func TestConsistencyWhenKill9AfterModify(t *testing.T) {
 
 	t.Logf("Verify snapshot corruption:")
 	// verify snapshot corruption
-	ctx := testlogging.Context(t)
 	err = bm.VerifySnapshot(ctx)
 	require.NoError(t, err)
 
