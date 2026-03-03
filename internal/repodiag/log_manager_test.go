@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/internal/blobtesting"
-	"github.com/kopia/kopia/internal/contentlog"
 	"github.com/kopia/kopia/internal/repodiag"
+	"github.com/kopia/kopia/internal/repotracing"
 	"github.com/kopia/kopia/internal/testlogging"
 )
 
@@ -25,7 +25,7 @@ func TestLogManager_Enabled(t *testing.T) {
 
 	lm.Enable()
 	l := lm.NewLogger("test")
-	contentlog.Log(ctx, l, "hello")
+	repotracing.Log(ctx, l, "hello")
 
 	require.Empty(t, d)
 	lm.Sync()
@@ -56,7 +56,7 @@ func TestLogManager_AutoFlush(t *testing.T) {
 		var b [1024]byte
 
 		rand.Read(b[:])
-		contentlog.Log(ctx, l, hex.EncodeToString(b[:]))
+		repotracing.Log(ctx, l, hex.EncodeToString(b[:]))
 	}
 
 	w.Wait(ctx)
@@ -77,7 +77,7 @@ func TestLogManager_NotEnabled(t *testing.T) {
 	lm := repodiag.NewLogManager(ctx, w, false, io.Discard)
 
 	l := lm.NewLogger("test")
-	contentlog.Log(ctx, l, "hello")
+	repotracing.Log(ctx, l, "hello")
 
 	require.Empty(t, d)
 	lm.Sync()
@@ -100,7 +100,7 @@ func TestLogManager_CancelledContext(t *testing.T) {
 
 	lm.Enable()
 	l := lm.NewLogger("test")
-	contentlog.Log(ctx, l, "hello")
+	repotracing.Log(ctx, l, "hello")
 
 	require.Empty(t, d)
 
@@ -119,6 +119,6 @@ func TestLogManager_Null(t *testing.T) {
 	lm.Enable()
 
 	l := lm.NewLogger("test")
-	contentlog.Log(ctx, l, "hello")
+	repotracing.Log(ctx, l, "hello")
 	lm.Sync()
 }

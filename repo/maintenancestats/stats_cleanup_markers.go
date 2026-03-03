@@ -3,7 +3,7 @@ package maintenancestats
 import (
 	"fmt"
 
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 )
 
 const cleanupMarkersStatsKind = "cleanupMarkersStats"
@@ -15,7 +15,7 @@ type CleanupMarkersStats struct {
 }
 
 // WriteValueTo writes the stats to JSONWriter.
-func (cs *CleanupMarkersStats) WriteValueTo(jw *contentlog.JSONWriter) {
+func (cs *CleanupMarkersStats) WriteValueTo(jw *repotracing.JSONWriter) {
 	jw.BeginObjectField(cs.Kind())
 	jw.IntField("deletedEpochMarkerBlobCount", cs.DeletedEpochMarkerBlobCount)
 	jw.IntField("deletedWatermarkBlobCount", cs.DeletedWatermarkBlobCount)

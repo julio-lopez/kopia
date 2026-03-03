@@ -1,4 +1,4 @@
-package contentlog_test
+package repotracing_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/kopia/kopia/internal/contentlog"
-	"github.com/kopia/kopia/internal/contentlog/logparam"
+	"github.com/kopia/kopia/internal/repotracing"
+	"github.com/kopia/kopia/internal/repotracing/logparam"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -20,7 +20,7 @@ func TestNewLogger(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		require.NotNil(t, logger)
 	})
 
@@ -31,17 +31,17 @@ func TestNewLogger(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		params := []contentlog.ParamWriter{
+		params := []repotracing.ParamWriter{
 			logparam.String("service", "test"),
 			logparam.Int("version", 1),
 		}
 
-		logger := contentlog.NewLogger(outputFunc, params...)
+		logger := repotracing.NewLogger(outputFunc, params...)
 		require.NotNil(t, logger)
 	})
 
 	t.Run("creates logger with nil output", func(t *testing.T) {
-		logger := contentlog.NewLogger(nil)
+		logger := repotracing.NewLogger(nil)
 		require.NotNil(t, logger)
 	})
 }
@@ -54,10 +54,10 @@ func TestLog(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log(ctx, logger, "test message")
+		repotracing.Log(ctx, logger, "test message")
 
 		require.NotEmpty(t, captured)
 
@@ -76,15 +76,15 @@ func TestLog(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		params := []contentlog.ParamWriter{
+		params := []repotracing.ParamWriter{
 			logparam.String("service", "test-service"),
 			logparam.Int("version", 2),
 		}
 
-		logger := contentlog.NewLogger(outputFunc, params...)
+		logger := repotracing.NewLogger(outputFunc, params...)
 		ctx := context.Background()
 
-		contentlog.Log(ctx, logger, "test message")
+		repotracing.Log(ctx, logger, "test message")
 
 		require.NotEmpty(t, captured)
 
@@ -101,14 +101,14 @@ func TestLog(t *testing.T) {
 	t.Run("handles nil logger gracefully", func(t *testing.T) {
 		ctx := context.Background()
 		// This should not panic
-		contentlog.Log(ctx, nil, "test message")
+		repotracing.Log(ctx, nil, "test message")
 	})
 
 	t.Run("handles nil output gracefully", func(t *testing.T) {
-		logger := contentlog.NewLogger(nil)
+		logger := repotracing.NewLogger(nil)
 		ctx := context.Background()
 		// This should not panic
-		contentlog.Log(ctx, logger, "test message")
+		repotracing.Log(ctx, logger, "test message")
 	})
 }
 
@@ -120,10 +120,10 @@ func TestLog1(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log1(ctx, logger, "processing item", logparam.String("id", "item-123"))
+		repotracing.Log1(ctx, logger, "processing item", logparam.String("id", "item-123"))
 
 		require.NotEmpty(t, captured)
 
@@ -142,13 +142,13 @@ func TestLog1(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
 		testCases := []struct {
 			name     string
 			message  string
-			param    contentlog.ParamWriter
+			param    repotracing.ParamWriter
 			key      string
 			expected any
 		}{
@@ -163,7 +163,7 @@ func TestLog1(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				captured = nil // reset
 
-				contentlog.Log1(ctx, logger, tc.message, tc.param)
+				repotracing.Log1(ctx, logger, tc.message, tc.param)
 
 				require.NotEmpty(t, captured)
 
@@ -186,10 +186,10 @@ func TestLog2(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log2(ctx, logger, "processing item",
+		repotracing.Log2(ctx, logger, "processing item",
 			logparam.String("id", "item-123"),
 			logparam.Int("count", 5))
 
@@ -213,10 +213,10 @@ func TestLog3(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log3(ctx, logger, "processing item",
+		repotracing.Log3(ctx, logger, "processing item",
 			logparam.String("id", "item-123"),
 			logparam.Int("count", 5),
 			logparam.Bool("active", true))
@@ -242,10 +242,10 @@ func TestLog4(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log4(ctx, logger, "processing item",
+		repotracing.Log4(ctx, logger, "processing item",
 			logparam.String("id", "item-123"),
 			logparam.Int("count", 5),
 			logparam.Bool("active", true),
@@ -273,10 +273,10 @@ func TestLog5(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log5(ctx, logger, "processing item",
+		repotracing.Log5(ctx, logger, "processing item",
 			logparam.String("id", "item-123"),
 			logparam.Int("count", 5),
 			logparam.Bool("active", true),
@@ -306,10 +306,10 @@ func TestLog6(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log6(ctx, logger, "processing item",
+		repotracing.Log6(ctx, logger, "processing item",
 			logparam.String("id", "item-123"),
 			logparam.Int("count", 5),
 			logparam.Bool("active", true),
@@ -341,7 +341,7 @@ func TestEmit(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
 		customEntry := &customLogEntry{
@@ -349,7 +349,7 @@ func TestEmit(t *testing.T) {
 			value:   42,
 		}
 
-		contentlog.Emit(ctx, logger, customEntry)
+		repotracing.Emit(ctx, logger, customEntry)
 
 		require.NotEmpty(t, captured)
 
@@ -369,12 +369,12 @@ func TestEmit(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		params := []contentlog.ParamWriter{
+		params := []repotracing.ParamWriter{
 			logparam.String("service", "custom-service"),
 			logparam.Int("version", 3),
 		}
 
-		logger := contentlog.NewLogger(outputFunc, params...)
+		logger := repotracing.NewLogger(outputFunc, params...)
 		ctx := context.Background()
 
 		customEntry := &customLogEntry{
@@ -382,7 +382,7 @@ func TestEmit(t *testing.T) {
 			value:   42,
 		}
 
-		contentlog.Emit(ctx, logger, customEntry)
+		repotracing.Emit(ctx, logger, customEntry)
 
 		require.NotEmpty(t, captured)
 
@@ -400,15 +400,15 @@ func TestEmit(t *testing.T) {
 		ctx := context.Background()
 		customEntry := &customLogEntry{message: "test", value: 1}
 		// This should not panic
-		contentlog.Emit(ctx, nil, customEntry)
+		repotracing.Emit(ctx, nil, customEntry)
 	})
 
 	t.Run("handles nil output gracefully", func(t *testing.T) {
-		logger := contentlog.NewLogger(nil)
+		logger := repotracing.NewLogger(nil)
 		ctx := context.Background()
 		customEntry := &customLogEntry{message: "test", value: 1}
 		// This should not panic
-		contentlog.Emit(ctx, logger, customEntry)
+		repotracing.Emit(ctx, logger, customEntry)
 	})
 }
 
@@ -420,12 +420,12 @@ func TestLoggerMultipleLogs(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log(ctx, logger, "first message")
-		contentlog.Log1(ctx, logger, "second message", logparam.String("id", "123"))
-		contentlog.Log2(ctx, logger, "third message", logparam.Int("count", 5), logparam.Bool("flag", true))
+		repotracing.Log(ctx, logger, "first message")
+		repotracing.Log1(ctx, logger, "second message", logparam.String("id", "123"))
+		repotracing.Log2(ctx, logger, "third message", logparam.Int("count", 5), logparam.Bool("flag", true))
 
 		require.NotEmpty(t, captured)
 
@@ -467,10 +467,10 @@ func TestLoggerErrorHandling(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
-		contentlog.Log1(ctx, logger, "error test", logparam.Error("err", nil))
+		repotracing.Log1(ctx, logger, "error test", logparam.Error("err", nil))
 
 		require.NotEmpty(t, captured)
 
@@ -489,11 +489,11 @@ func TestLoggerErrorHandling(t *testing.T) {
 			captured = append(captured, data...)
 		}
 
-		logger := contentlog.NewLogger(outputFunc)
+		logger := repotracing.NewLogger(outputFunc)
 		ctx := context.Background()
 
 		testErr := &testError{msg: "operation failed"}
-		contentlog.Log1(ctx, logger, "error test", logparam.Error("err", testErr))
+		repotracing.Log1(ctx, logger, "error test", logparam.Error("err", testErr))
 
 		require.NotEmpty(t, captured)
 
@@ -521,7 +521,7 @@ type customLogEntry struct {
 	value   int
 }
 
-func (e *customLogEntry) WriteTo(jw *contentlog.JSONWriter) {
+func (e *customLogEntry) WriteTo(jw *repotracing.JSONWriter) {
 	jw.StringField("message", e.message)
 	jw.Int64Field("value", int64(e.value))
 }

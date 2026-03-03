@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/internal/blobtesting"
-	"github.com/kopia/kopia/internal/contentlog"
+	"github.com/kopia/kopia/internal/repotracing"
 	"github.com/kopia/kopia/internal/testlogging"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/logging"
@@ -43,7 +43,7 @@ func TestLoggingStorage(t *testing.T) {
 		jsonOutputCount.Add(1)
 	}
 
-	st := logging.NewWrapper(underlying, testlogging.Printf(myOutput, ""), contentlog.NewLogger(myJSONOutput), myPrefix)
+	st := logging.NewWrapper(underlying, testlogging.Printf(myOutput, ""), repotracing.NewLogger(myJSONOutput), myPrefix)
 	if st == nil {
 		t.Fatalf("unexpected result: %v", st)
 	}
