@@ -105,6 +105,10 @@ func BenchmarkCompressor(b *testing.B) {
 	slices.Sort(sortedNames)
 
 	for _, id := range sortedNames {
+		if !IsSupported(id) {
+			continue
+		}
+
 		comp := ByName[id]
 
 		b.Run(fmt.Sprintf("%v-compress-zeroes", id), func(b *testing.B) {

@@ -58,9 +58,16 @@ func RegisterDeprecatedCompressor(name Name, c Compressor) {
 }
 
 func registerUnsupportedCompressor(name Name, c Compressor) {
-	RegisterCompressor(name, c)
+	if ByHeaderID[c.HeaderID()] != nil {
+		panic(fmt.Sprintf("compressor with HeaderID %x already registered", c.HeaderID()))
+	}
 
-	IsDeprecated[name] = true
+	// Register only in ByHeaderID/HeaderIDToName (not ByName) so that unsupported
+	// compressors are not advertised as valid algorithms in any user-facing listing,
+	// while still allowing the decompression path to return a descriptive error for
+	// legacy data compressed with this algorithm.
+	ByHeaderID[c.HeaderID()] = c
+	HeaderIDToName[c.HeaderID()] = name
 	isUnsupported[c.HeaderID()] = true
 }
 
