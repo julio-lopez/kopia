@@ -20,6 +20,8 @@ concurrency:
 jobs:
   build:
     name: Build and lint
+    permissions:
+      security-events: read
     runs-on: ubuntu-latest
     steps:
     -
