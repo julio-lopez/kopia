@@ -60,6 +60,8 @@ jobs:
     -
       name: Lint
       run: make lint vet
+    - name: Check Locks
+      run: make check-locks
     -
       name: Upload Logs
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
