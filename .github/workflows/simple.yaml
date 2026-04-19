@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     -
-      uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
       with:
         egress-policy: audit
     -
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     -
-      uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
       with:
         egress-policy: audit
     -
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     -
-      uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
       with:
         egress-policy: audit
     -
@@ -127,7 +127,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #   -
-  #     uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+  #     uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
   #     with:
   #       egress-policy: audit
   #   -
@@ -168,7 +168,7 @@ jobs:
       fail-fast: false
     steps:
     -
-      uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
       with:
         egress-policy: audit
     -
@@ -207,7 +207,7 @@ jobs:
       fail-fast: false
     steps:
     -
-      uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
       with:
         egress-policy: audit
     -
