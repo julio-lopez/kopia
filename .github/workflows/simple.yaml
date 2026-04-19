@@ -21,7 +21,7 @@ jobs:
   build:
     name: Build and lint
     permissions:
-      security-events: read
+      security-events: write
     runs-on: ubuntu-latest
     steps:
     -
