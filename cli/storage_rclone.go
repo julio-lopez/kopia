@@ -48,3 +48,11 @@ func (c *storageRcloneFlags) Connect(ctx context.Context, isCreate bool, formatV
 	//nolint:wrapcheck
 	return rclone.New(ctx, &c.opt, isCreate)
 }
+
+func init() {
+	AddSupportedStorageProvider(
+		"rclone",
+		"a rclone-based provider [Not maintained]",
+		func() StorageFlags { return &storageRcloneFlags{} },
+	)
+}
