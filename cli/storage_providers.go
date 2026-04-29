@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/alecthomas/kingpin/v2"
 
@@ -33,6 +34,39 @@ type StorageProvider struct {
 	Name        string
 	Description string
 	NewFlags    func() StorageFlags
+}
+
+//nolint:gochecknoglobals
+var (
+	registeredProviders   []StorageProvider
+	registeredProvidersMu sync.Mutex
+)
+
+// AddSupportedStorageProvider registers a storage provider for use with the CLI repository connect command.
+// This function is similar to blob.AddSupportedStorage but for CLI storage providers.
+// It should typically be called from init() functions in storage provider packages.
+func AddSupportedStorageProvider(name, description string, newFlags func() StorageFlags) {
+	registeredProvidersMu.Lock()
+	defer registeredProvidersMu.Unlock()
+
+	registeredProviders = append(registeredProviders, StorageProvider{
+		Name:        name,
+		Description: description,
+		NewFlags:    newFlags,
+	})
+}
+
+// GetRegisteredStorageProviders returns a copy of all registered storage providers.
+// This is used internally by the App to build the list of available storage providers.
+func GetRegisteredStorageProviders() []StorageProvider {
+	registeredProvidersMu.Lock()
+	defer registeredProvidersMu.Unlock()
+
+	// Return a copy to prevent external modification
+	providers := make([]StorageProvider, len(registeredProviders))
+	copy(providers, registeredProviders)
+
+	return providers
 }
 
 func commonThrottlingFlags(cmd *kingpin.CmdClause, limits *throttling.Limits) {
