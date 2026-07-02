@@ -205,7 +205,7 @@ jobs:
         queries: security-extended,security-and-quality
     -
       name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@2a1689ed43ccdf7eea07e03a75371ce6801d28e6 # v2.23.3
+      uses: github/codeql-action/analyze@c1e7c7a0de342c642bc11d2219ba7a3cb2281f19 # v2.23.3
       with:
         category: "/language:actions"
 
@@ -257,6 +257,6 @@ jobs:
         go test -list '.*' ./...
     -
       name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@2a1689ed43ccdf7eea07e03a75371ce6801d28e6 # v2.23.3
+      uses: github/codeql-action/analyze@c1e7c7a0de342c642bc11d2219ba7a3cb2281f19 # v2.23.3
       with:
         category: "/language:go"
