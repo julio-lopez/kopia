@@ -55,6 +55,7 @@ type connectOptions struct {
 	connectPermissiveCacheLoading bool
 	connectDescription            string
 	connectEnableActions          bool
+	skipVerify                    bool
 
 	formatBlobCacheDuration time.Duration
 	disableFormatBlobCache  bool
@@ -79,6 +80,7 @@ func (c *connectOptions) setup(svc appServices, cmd *kingpin.CmdClause) {
 	cmd.Flag("enable-actions", "Allow snapshot actions").BoolVar(&c.connectEnableActions)
 	cmd.Flag("repository-format-cache-duration", "Duration of kopia.repository format blob cache").Hidden().DurationVar(&c.formatBlobCacheDuration)
 	cmd.Flag("disable-repository-format-cache", "Disable caching of kopia.repository format blob").Hidden().BoolVar(&c.disableFormatBlobCache)
+	cmd.Flag("skip-verify", "Skip opening the repository to verify the connection").Hidden().BoolVar(&c.skipVerify)
 }
 
 func (c *connectOptions) getFormatBlobCacheDuration() time.Duration {
@@ -111,6 +113,7 @@ func (c *connectOptions) toRepoConnectOptions() *repo.ConnectOptions {
 			EnableActions:           c.connectEnableActions,
 			FormatBlobCacheDuration: c.getFormatBlobCacheDuration(),
 		},
+		SkipVerifyConnect: c.skipVerify,
 	}
 }
 
@@ -131,7 +134,12 @@ func (c *App) runConnectCommandWithStorageAndPassword(ctx context.Context, co *c
 		return errors.Wrap(err, "error connecting to repository")
 	}
 
-	log(ctx).Info("Connected to repository.")
+	if co.skipVerify {
+		log(ctx).Info("Repository connection saved without opening the repository.")
+	} else {
+		log(ctx).Info("Connected to repository.")
+	}
+
 	c.maybeInitializeUpdateCheck(ctx, co)
 
 	return nil

@@ -18,6 +18,11 @@ type ConnectOptions struct {
 	ClientOptions
 
 	content.CachingOptions
+
+	// SkipVerifyConnect skips the full repository open/verify after writing config.
+	// A cheap password validation against the format blob is still performed;
+	// if that fails the config is removed and the error is returned.
+	SkipVerifyConnect bool
 }
 
 // ErrRepositoryNotInitialized is returned when attempting to connect to repository that has not
@@ -59,6 +64,18 @@ func Connect(ctx context.Context, configFile string, st blob.Storage, password s
 
 	if err := lc.writeToFile(configFile); err != nil {
 		return errors.Wrap(err, "unable to write config file")
+	}
+
+	if opt.SkipVerifyConnect {
+		if err := f.ValidatePassword(password); err != nil {
+			if derr := Disconnect(ctx, configFile); derr != nil {
+				log(ctx).Errorf("unable to disconnect after unsuccessful validation: %v", derr)
+			}
+
+			return err
+		}
+
+		return nil
 	}
 
 	return verifyConnect(ctx, configFile, password)
