@@ -1,4 +1,4 @@
-name: Sync Fork
+name: Sync Upstream
 on:
   push:
     branches: [ main, local-main ]
@@ -9,7 +9,7 @@ on:
     inputs:
       target_branch:
         description: 'target branch for repo sync'
-        default: 'master'
+        default: 'upstream'
         required: true
         type: choice
         options:
@@ -36,4 +36,4 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh repo sync ${{ github.repository }} -b ${{ inputs.target_branch || 'master' }}
+        gh repo sync ${{ github.repository }} -b ${{ inputs.target_branch || 'upstream' }}
