@@ -30,21 +30,25 @@ func (p IDPrefix) ValidateSingle() error {
 }
 
 const (
-	maxIDLength = hashing.MaxHashSize
+	maxIDDataLength  = hashing.MaxHashSize
+	maxContentIDSize = maxIDDataLength + 1
+
+	unknownKeySize = 255
+
+	// ensure maxContentIDSize < unknownKeySize.
+	_ uint8 = unknownKeySize - maxContentIDSize - 1
 
 	maxUInt8 = 255
-
-	// maxIDLength needs to be less or equal than maxUInt8 and at least 8 bytes.
-	_ uint = maxUInt8 - maxIDLength
+	// keep maxUInt8 untyped int and ensure it fits in uint8.
+	_ uint8 = maxUInt8
 )
 
 func _() {
 	var (
 		id ID
 
-		// verify len(ID.data) <= maxUInt8 and > 0
-		_ = uint(len(id.data))
-		_ = uint(maxUInt8 - len(id.data))
+		// verify len(ID.data) + 1 < 255 (unknownKeySize)
+		_ = uint8(unknownKeySize - 2 - len(id.data))
 	)
 }
 
@@ -52,7 +56,7 @@ func _() {
 //
 //nolint:recvcheck
 type ID struct {
-	data [maxIDLength]byte
+	data [maxIDDataLength]byte
 
 	// those 2 could be packed into one byte, but that seems like overkill
 	prefix byte
