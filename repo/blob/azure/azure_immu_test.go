@@ -32,9 +32,9 @@ func TestAzureStorageImmutabilityProtection(t *testing.T) {
 	ctx := testlogging.Context(t)
 
 	// use context that gets canceled after opening storage to ensure it's not used beyond New().
-	newctx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := context.WithCancel(ctx)
 	prefix := storagePrefixForTest()
-	st, err := azure.New(newctx, &azure.Options{
+	st, err := azure.New(newCtx, &azure.Options{
 		Container:      container,
 		StorageAccount: storageAccount,
 		StorageKey:     storageKey,
