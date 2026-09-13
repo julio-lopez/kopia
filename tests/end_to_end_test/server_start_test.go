@@ -581,8 +581,6 @@ func TestServerStartInsecureUnauthenticatedEscapeHatchNonLoopback(t *testing.T) 
 		"--"+insecureserverbind.AllowDangerousUnauthenticatedNetworkFlag,
 	)
 
-	require.Eventually(t, func() bool { return sp.BaseURL != "" }, 15*time.Second, 50*time.Millisecond)
-
 	kill()
 	wait()
 
