@@ -545,21 +545,21 @@ func (bm *WriteManager) processWritePackResultLocked(pp *pendingPackInfo, packFi
 	bm.writingPacks = removePendingPack(bm.writingPacks, pp)
 	bm.failedPacks = removePendingPack(bm.failedPacks, pp)
 
-	if writeErr == nil {
-		// success, add pack index builder entries to index.
-		for _, info := range packFileIndex {
-			bm.packIndexBuilder.Add(info)
-		}
+	if writeErr != nil {
+		// failure - add to failedPacks slice again
+		bm.failedPacks = append(bm.failedPacks, pp)
 
-		pp.currentPackData.Close()
-
-		return nil
+		return errors.Wrap(writeErr, "error writing pack")
 	}
 
-	// failure - add to failedPacks slice again
-	bm.failedPacks = append(bm.failedPacks, pp)
+	// success, add pack index builder entries to index.
+	for _, info := range packFileIndex {
+		bm.packIndexBuilder.Add(info)
+	}
 
-	return errors.Wrap(writeErr, "error writing pack")
+	pp.currentPackData.Close()
+
+	return nil
 }
 
 func (sm *SharedManager) prepareAndWritePackInternal(ctx context.Context, pp *pendingPackInfo, onUpload func(int64)) (index.Builder, error) {
