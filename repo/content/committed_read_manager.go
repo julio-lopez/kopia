@@ -205,7 +205,8 @@ func (sm *SharedManager) attemptReadPackFileLocalIndex(ctx context.Context, pack
 
 	return errors.Wrap(
 		sm.decryptAndVerify(encryptedLocalIndexBytes.Bytes(), postamble.localIndexIV, output),
-		"unable to decrypt local index")
+		"unable to decrypt local index",
+	)
 }
 
 // +checklocks:sm.indexesLock
@@ -213,7 +214,11 @@ func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
 	ctx0 := contentlog.WithParams(ctx,
 		logparam.String("span:loadindex", contentlog.RandomSpanID()))
 
+	loadTimer := timetrack.StartTimer()
+
 	nextSleepTime := 100 * time.Millisecond //nolint:mnd
+
+	var lastErr error
 
 	for i := range indexLoadAttempts {
 		ctx := contentlog.WithParams(ctx0,
@@ -247,9 +252,14 @@ func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
 			return errors.Wrap(err, "error listing index blobs")
 		}
 
-		var indexBlobIDs []blob.ID
+		var (
+			indexBlobIDs    []blob.ID
+			totalIndexBytes int64
+		)
+
 		for _, b := range indexBlobs {
 			indexBlobIDs = append(indexBlobIDs, b.BlobID)
+			totalIndexBytes += b.Length
 		}
 
 		err = sm.committedContents.fetchIndexBlobs(ctx, sm.permissiveCacheLoading, indexBlobIDs)
@@ -267,15 +277,27 @@ func (sm *SharedManager) loadPackIndexesLocked(ctx context.Context) error {
 
 			sm.refreshIndexesAfter = sm.timeNow().Add(indexRefreshFrequency)
 
+			contentlog.Log4(ctx, sm.log, "loadPackIndexes",
+				logparam.Duration("latency", loadTimer.Elapsed()),
+				logparam.Int("indexBlobs", len(indexBlobs)),
+				logparam.Int64("totalIndexBytes", totalIndexBytes),
+				logparam.Int("attempts", i+1))
+
 			return nil
 		}
 
 		if !errors.Is(err, blob.ErrBlobNotFound) {
 			return err
 		}
+
+		lastErr = err
 	}
 
-	return errors.Errorf("unable to load pack indexes despite %v retries", indexLoadAttempts)
+	contentlog.Log2(ctx0, sm.log, "loadPackIndexes gave up",
+		logparam.Duration("latency", loadTimer.Elapsed()),
+		logparam.Int("attempts", indexLoadAttempts))
+
+	return errors.Wrapf(lastErr, "unable to load pack indexes despite %v attempts", indexLoadAttempts)
 }
 
 func (sm *SharedManager) getCacheForContentID(id ID) cache.ContentCache {
@@ -317,7 +339,8 @@ func (sm *SharedManager) decryptContentAndVerify(payload gather.Bytes, bi Info, 
 	if h == 0 {
 		return errors.Wrapf(
 			sm.decryptAndVerify(payload, iv, output),
-			"invalid checksum at %v offset %v length %v/%v", bi.PackBlobID, bi.PackOffset, bi.PackedLength, payload.Length())
+			"invalid checksum at %v offset %v length %v/%v", bi.PackBlobID, bi.PackOffset, bi.PackedLength, payload.Length(),
+		)
 	}
 
 	var tmp gather.WriteBuffer
@@ -506,7 +529,8 @@ func (sm *SharedManager) setupCachesAndIndexManagers(ctx context.Context, cachin
 		cachedSt,
 		sm.format,
 		indexBlobCache,
-		sm.namedLogger("encrypted-blob-manager"))
+		sm.namedLogger("encrypted-blob-manager"),
+	)
 
 	// set up legacy index blob manager
 	sm.indexBlobManagerV0 = indexblob.NewManagerV0(
