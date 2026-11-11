@@ -1819,3 +1819,238 @@ func verifyLogDetails(t *testing.T, desc string, wantDetailKeys []string, keysAn
 	sort.Strings(wantDetailKeys)
 	require.Equal(t, wantDetailKeys, gotDetailKeys, "invalid details for "+desc)
 }
+
+// failingRepositoryWriter injects failures into the object writers whose description
+// has the given prefix, leaving all other repository operations intact.
+type failingRepositoryWriter struct {
+	repo.RepositoryWriter
+
+	descriptionPrefix string
+	failWrite         bool
+	failResult        bool
+}
+
+func (r *failingRepositoryWriter) NewObjectWriter(ctx context.Context, opt object.WriterOptions) object.Writer {
+	w := r.RepositoryWriter.NewObjectWriter(ctx, opt)
+
+	if !strings.HasPrefix(opt.Description, r.descriptionPrefix) {
+		return w
+	}
+
+	return &failingObjectWriter{Writer: w, failWrite: r.failWrite, failResult: r.failResult}
+}
+
+type failingObjectWriter struct {
+	object.Writer
+
+	failWrite  bool
+	failResult bool
+}
+
+func (w *failingObjectWriter) Write(p []byte) (int, error) {
+	if w.failWrite {
+		return 0, errTest
+	}
+
+	return w.Writer.Write(p)
+}
+
+func (w *failingObjectWriter) Result() (object.ID, error) {
+	if w.failResult {
+		return object.EmptyID, errTest
+	}
+
+	return w.Writer.Result()
+}
+
+// TestUpload_RepositoryWriteErrorsAreNotIgnored verifies that failures writing
+// entry data to the repository fail the upload even when the error handling
+// policy is configured to ignore every error it can: only failures reading the
+// snapshot source are eligible to be ignored.
+func TestUpload_RepositoryWriteErrorsAreNotIgnored(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		desc              string
+		descriptionPrefix string
+		failWrite         bool
+		failResult        bool
+	}{
+		{desc: "file data write", descriptionPrefix: "FILE:", failWrite: true},
+		{desc: "file result", descriptionPrefix: "FILE:", failResult: true},
+		{desc: "directory manifest result", descriptionPrefix: "DIR:", failResult: true},
+	}
+
+	trueValue := policy.OptionalBool(true)
+
+	policyTree := policy.BuildTree(nil, &policy.Policy{
+		ErrorHandlingPolicy: policy.ErrorHandlingPolicy{
+			IgnoreFileErrors:      &trueValue,
+			IgnoreDirectoryErrors: &trueValue,
+			IgnoreUnknownTypes:    &trueValue,
+		},
+	})
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testlogging.Context(t)
+			th := newUploadTestHarness(ctx, t)
+
+			t.Cleanup(th.cleanup)
+
+			u := NewUploader(&failingRepositoryWriter{
+				RepositoryWriter:  th.repo,
+				descriptionPrefix: tc.descriptionPrefix,
+				failWrite:         tc.failWrite,
+				failResult:        tc.failResult,
+			})
+
+			man, err := u.Upload(ctx, th.sourceDir, policyTree, snapshot.SourceInfo{})
+			require.ErrorIs(t, err, errTest, "repository write error must not be ignored")
+			require.Nil(t, man)
+		})
+	}
+}
+
+// TestUpload_StreamingFileRepositoryWriteErrorNotIgnored is the streaming file
+// counterpart of TestUpload_RepositoryWriteErrorsAreNotIgnored.
+func TestUpload_StreamingFileRepositoryWriteErrorNotIgnored(t *testing.T) {
+	t.Parallel()
+
+	ctx := testlogging.Context(t)
+	th := newUploadTestHarness(ctx, t)
+
+	t.Cleanup(th.cleanup)
+
+	u := NewUploader(&failingRepositoryWriter{
+		RepositoryWriter:  th.repo,
+		descriptionPrefix: "STREAMFILE:",
+		failWrite:         true,
+	})
+
+	trueValue := policy.OptionalBool(true)
+
+	policyTree := policy.BuildTree(nil, &policy.Policy{
+		ErrorHandlingPolicy: policy.ErrorHandlingPolicy{
+			IgnoreFileErrors:      &trueValue,
+			IgnoreDirectoryErrors: &trueValue,
+		},
+	})
+
+	root := virtualfs.NewStaticDirectory("rootdir", []fs.Entry{
+		virtualfs.StreamingFileFromReader("stream-file", io.NopCloser(bytes.NewReader([]byte("streaming file content")))),
+	})
+
+	man, err := u.Upload(ctx, root, policyTree, snapshot.SourceInfo{})
+	require.ErrorIs(t, err, errTest, "repository write error must not be ignored")
+	require.Nil(t, man)
+}
+
+// unreadableFile is a mockfs file source whose reads always fail.
+type unreadableFile struct{}
+
+func (unreadableFile) Read([]byte) (int, error) { return 0, errTest }
+
+func (unreadableFile) Seek(int64, int) (int64, error) { return 0, nil }
+
+func (unreadableFile) Close() error { return nil }
+
+// TestUpload_SourceReadErrorsAreIgnored is the counterpart of
+// TestUpload_RepositoryWriteErrorsAreNotIgnored: failures reading the snapshot
+// source remain eligible for the error handling policy.
+func TestUpload_SourceReadErrorsAreIgnored(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		desc   string
+		source func() (mockfs.ReaderSeekerCloser, error)
+	}{
+		{
+			desc:   "cannot open file",
+			source: func() (mockfs.ReaderSeekerCloser, error) { return nil, errTest },
+		},
+		{
+			desc:   "cannot read file contents",
+			source: func() (mockfs.ReaderSeekerCloser, error) { return unreadableFile{}, nil },
+		},
+	}
+
+	trueValue := policy.OptionalBool(true)
+
+	policyTree := policy.BuildTree(nil, &policy.Policy{
+		ErrorHandlingPolicy: policy.ErrorHandlingPolicy{
+			IgnoreFileErrors: &trueValue,
+		},
+	})
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testlogging.Context(t)
+			th := newUploadTestHarness(ctx, t)
+
+			t.Cleanup(th.cleanup)
+
+			th.sourceDir.AddFileWithSource("d1/unreadable", defaultPermissions, tc.source)
+
+			man, err := NewUploader(th.repo).Upload(ctx, th.sourceDir, policyTree, snapshot.SourceInfo{})
+			require.NoError(t, err)
+
+			verifyErrors(t, man, 0, 1, entryPathToError{"d1/unreadable": errTest})
+		})
+	}
+}
+
+func Test_isIgnorableEntryError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		desc string
+		err  error
+		want bool
+	}{
+		{desc: "nil", err: nil, want: false},
+		{desc: "source read error", err: entryReadError{errTest}, want: true},
+		{desc: "wrapped source read error", err: errors.Wrap(entryReadError{errTest}, "context"), want: true},
+		{desc: "cancellation", err: errors.Wrap(errCanceled, "canceled when copying data"), want: true},
+		{desc: "untagged error", err: errTest, want: false},
+		{desc: "repository write error", err: errors.Wrap(errTest, "unable to get result"), want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, isIgnorableEntryError(tc.err))
+		})
+	}
+}
+
+func Test_firstNonReadError(t *testing.T) {
+	t.Parallel()
+
+	writeErr := errors.Wrap(errTest, "unable to get result")
+
+	cases := []struct {
+		desc string
+		errs []error
+		want error
+	}{
+		{desc: "no errors", errs: []error{nil, nil}, want: nil},
+		{desc: "only source read errors", errs: []error{nil, entryReadError{errTest}, entryReadError{errTest}}, want: nil},
+		{desc: "wrapped source read error", errs: []error{errors.Wrap(entryReadError{errTest}, "context")}, want: nil},
+		{desc: "write error after read error", errs: []error{entryReadError{errTest}, writeErr}, want: writeErr},
+		{desc: "write error before read error", errs: []error{writeErr, entryReadError{errTest}}, want: writeErr},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, firstNonReadError(tc.errs))
+		})
+	}
+}

@@ -146,7 +146,7 @@ func (u *Uploader) uploadFileInternal(ctx context.Context, parentCheckpointRegis
 
 	if pf, ok := f.(snapshot.HasDirEntryOrNil); ok {
 		if de, err := pf.DirEntryOrNil(ctx); err != nil {
-			return nil, errors.Wrap(err, "can't read placeholder")
+			return nil, entryReadError{errors.Wrap(err, "can't read placeholder")}
 		} else if de != nil {
 			// We have read sufficient information from the shallow file's extended
 			// attribute to construct DirEntry.
@@ -201,9 +201,15 @@ func (u *Uploader) uploadFileInternal(ctx context.Context, parentCheckpointRegis
 
 	wg.Wait()
 
-	// see if we got any errors
+	// A part that failed for any reason other than reading the source makes the
+	// whole file ineligible for the error handling policy, so report it on its own
+	// rather than joined with part errors that are ignorable.
+	if err := firstNonReadError(partErrors); err != nil {
+		return nil, errors.Wrap(err, "error uploading part")
+	}
+
 	if err := stderrors.Join(partErrors...); err != nil {
-		return nil, errors.Wrap(err, "error uploading parts")
+		return nil, entryReadError{errors.Wrap(err, "error uploading parts")}
 	}
 
 	return concatenateParts(ctx, u.repo, f.Name(), parts, metadataComp)
@@ -237,7 +243,7 @@ func concatenateParts(ctx context.Context, rep repo.RepositoryWriter, name strin
 func (u *Uploader) uploadFileData(ctx context.Context, parentCheckpointRegistry *checkpointRegistry, f fs.File, fname string, offset, length int64, compressor, metadataComp compression.Name, splitterName string) (*snapshot.DirEntry, error) {
 	file, err := f.Open(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to open file")
+		return nil, entryReadError{errors.Wrap(err, "unable to open file")}
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -267,7 +273,7 @@ func (u *Uploader) uploadFileData(ctx context.Context, parentCheckpointRegistry 
 
 	if offset != 0 {
 		if _, serr := file.Seek(offset, io.SeekStart); serr != nil {
-			return nil, errors.Wrap(serr, "seek error")
+			return nil, entryReadError{errors.Wrap(serr, "seek error")}
 		}
 	}
 
@@ -309,7 +315,7 @@ func (u *Uploader) uploadSymlinkInternal(ctx context.Context, relativePath strin
 
 	target, err := f.Readlink(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to read symlink")
+		return nil, entryReadError{errors.Wrap(err, "unable to read symlink")}
 	}
 
 	writer := u.repo.NewObjectWriter(ctx, object.WriterOptions{
@@ -341,7 +347,7 @@ func (u *Uploader) uploadSymlinkInternal(ctx context.Context, relativePath strin
 func (u *Uploader) uploadStreamingFileInternal(ctx context.Context, relativePath string, f fs.StreamingFile, pol *policy.Policy) (dirEntry *snapshot.DirEntry, ret error) {
 	reader, err := f.GetReader(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to get streaming file reader")
+		return nil, entryReadError{errors.Wrap(err, "unable to get streaming file reader")}
 	}
 
 	var streamSize int64
@@ -412,8 +418,7 @@ func (u *Uploader) copyWithProgress(dst io.Writer, src io.Reader) (int64, error)
 			}
 
 			if writeErr != nil {
-				//nolint:wrapcheck
-				return written, writeErr
+				return written, errors.Wrap(writeErr, "error writing data")
 			}
 
 			if readBytes != wroteBytes {
@@ -426,8 +431,7 @@ func (u *Uploader) copyWithProgress(dst io.Writer, src io.Reader) (int64, error)
 				break
 			}
 
-			//nolint:wrapcheck
-			return written, readErr
+			return written, entryReadError{errors.Wrap(readErr, "error reading data")}
 		}
 	}
 
@@ -645,6 +649,12 @@ func rootCauseError(err error) error {
 
 	if errors.As(err, &dre) {
 		return rootCauseError(dre.error)
+	}
+
+	var ere entryReadError
+
+	if errors.As(err, &ere) {
+		return rootCauseError(ere.error)
 	}
 
 	err = errors.Cause(err)
@@ -952,7 +962,7 @@ func (u *Uploader) processSingle(
 			}
 		}
 
-		return u.processEntryUploadResult(ctx, nil, entry.ErrorInfo(), entryRelativePath, parentDirBuilder,
+		return u.processEntryUploadResult(ctx, nil, entryReadError{entry.ErrorInfo()}, entryRelativePath, parentDirBuilder,
 			isIgnoredError,
 			u.OverrideEntryLogDetail.OrDefault(policyTree.EffectivePolicy().LoggingPolicy.Entries.Snapshotted.OrDefault(policy.LogDetailNone)),
 			prefix, t0)
@@ -972,7 +982,11 @@ func (u *Uploader) processSingle(
 	}
 }
 
-//nolint:unparam
+// processEntryUploadResult records the outcome of uploading a single entry. On
+// success it adds de to parentDirBuilder. Errors reading the source entry are
+// subject to isIgnored and are recorded without failing the upload. Any other
+// error, in particular a failure writing to the repository, is fatal and is
+// returned to the caller.
 func (u *Uploader) processEntryUploadResult(
 	ctx context.Context,
 	de *snapshot.DirEntry,
@@ -984,16 +998,23 @@ func (u *Uploader) processEntryUploadResult(
 	logMessage string,
 	t0 timetrack.Timer,
 ) error {
-	if err != nil {
-		u.reportErrorAndMaybeCancel(err, isIgnored, parentDirBuilder, entryRelativePath)
-	} else {
+	isFatal := err != nil && !isIgnorableEntryError(err)
+
+	switch {
+	case err == nil:
 		parentDirBuilder.AddEntry(de)
+	case !isFatal:
+		u.reportErrorAndMaybeCancel(err, isIgnored, parentDirBuilder, entryRelativePath)
 	}
 
 	maybeLogEntryProcessed(
 		uploadLog(ctx),
 		logDetail,
 		logMessage, entryRelativePath, de, err, t0)
+
+	if isFatal {
+		return err
+	}
 
 	return nil
 }
@@ -1098,6 +1119,41 @@ func uniqueDirectories(dirs []fs.Directory) []fs.Directory {
 // dirReadError distinguishes an error thrown when attempting to read a directory.
 type dirReadError struct {
 	error
+}
+
+// entryReadError distinguishes an error thrown when attempting to read a
+// non-directory entry from the snapshot source. It is the counterpart of
+// dirReadError for files, symlinks and streaming files.
+//
+// Only errors marked this way are eligible to be ignored by the error handling
+// policy. Everything else, in particular failures writing to the repository, must
+// fail the upload: ignoring those would produce a snapshot that silently omits
+// data while being reported as successful.
+type entryReadError struct {
+	error
+}
+
+// isIgnorableEntryError reports whether err is eligible to be ignored by the error
+// handling policy. Only failures reading the snapshot source qualify, plus
+// cancellation, which reportErrorAndMaybeCancel handles on its own.
+func isIgnorableEntryError(err error) bool {
+	var ere entryReadError
+
+	return errors.As(err, &ere) || errors.Is(err, errCanceled)
+}
+
+// firstNonReadError returns the first error in errs that is not a failure to read
+// the snapshot source, or nil when there is none.
+func firstNonReadError(errs []error) error {
+	var ere entryReadError
+
+	for _, err := range errs {
+		if err != nil && !errors.As(err, &ere) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func uploadShallowDirInternal(ctx context.Context, directory fs.Directory, u *Uploader) (*snapshot.DirEntry, error) {
