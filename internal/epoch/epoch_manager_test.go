@@ -775,11 +775,11 @@ func TestGetCompleteIndexSetRetriesIfTookTooLong(t *testing.T) {
 
 	// advance by 3 epochs to ensure GetCompleteIndexSet will be trying to list
 	// some blobs that were not fetched during Refresh().
-	te.mgr.forceAdvanceEpoch(ctx)
+	te.mustForceAdvanceEpoch(ctx, t)
 	te.ft.Advance(1 * time.Hour)
-	te.mgr.forceAdvanceEpoch(ctx)
+	te.mustForceAdvanceEpoch(ctx, t)
 	te.ft.Advance(1 * time.Hour)
-	te.mgr.forceAdvanceEpoch(ctx)
+	te.mustForceAdvanceEpoch(ctx, t)
 	te.ft.Advance(1 * time.Hour)
 
 	// load committed state
@@ -834,7 +834,7 @@ func TestSlowWrite_MovesToNextEpoch(t *testing.T) {
 	te.faultyStorage.AddFaults(blobtesting.MethodPutBlob,
 		fault.New().Before(func() {
 			te.ft.Advance(1 * time.Hour)
-			te.mgr.forceAdvanceEpoch(ctx)
+			te.mustForceAdvanceEpoch(ctx, t)
 		}),
 		fault.New().Before(func() { te.ft.Advance(1 * time.Hour) }))
 
@@ -861,8 +861,8 @@ func TestSlowWrite_MovesToNextEpochTwice(t *testing.T) {
 			te.ft.Advance(24 * time.Hour)
 		}),
 		fault.New().Before(func() {
-			te.mgr.forceAdvanceEpoch(ctx)
-			te.mgr.forceAdvanceEpoch(ctx)
+			te.mustForceAdvanceEpoch(ctx, t)
+			te.mustForceAdvanceEpoch(ctx, t)
 		}))
 
 	_, err := te.writeIndexFiles(ctx,
@@ -1093,13 +1093,13 @@ func TestForceAdvanceEpoch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, cs.WriteEpoch)
 
-	require.NoError(t, te.mgr.forceAdvanceEpoch(ctx))
+	te.mustForceAdvanceEpoch(ctx, t)
 
 	cs, err = te.mgr.Current(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, cs.WriteEpoch)
 
-	require.NoError(t, te.mgr.forceAdvanceEpoch(ctx))
+	te.mustForceAdvanceEpoch(ctx, t)
 
 	cs, err = te.mgr.Current(ctx)
 	require.NoError(t, err)
@@ -1130,14 +1130,14 @@ func TestInvalid_ForceAdvanceEpoch(t *testing.T) {
 	ctx, cancel := context.WithCancel(testlogging.Context(t))
 	defer cancel()
 
-	err := te.mgr.forceAdvanceEpoch(ctx)
+	err := te.forceAdvanceEpoch(ctx)
 	require.ErrorIs(t, err, ctx.Err())
 
 	ctx = testlogging.Context(t)
 	someError := errors.New("failed")
 	te.faultyStorage.AddFault(blobtesting.MethodPutBlob).ErrorInstead(someError)
 
-	err = te.mgr.forceAdvanceEpoch(ctx)
+	err = te.forceAdvanceEpoch(ctx)
 	require.ErrorIs(t, err, someError)
 }
 
@@ -1982,7 +1982,7 @@ func TestCleanupMarkers_AvoidCleaningUpSingleEpochMarker(t *testing.T) {
 	te := newTestEnv(t)
 	ctx := testlogging.Context(t)
 
-	te.mgr.forceAdvanceEpoch(ctx)
+	te.mustForceAdvanceEpoch(ctx, t)
 	te.ft.Advance(1 * time.Hour)
 
 	require.NoError(t, te.mgr.Refresh(ctx))
@@ -2021,7 +2021,7 @@ func TestCleanupMarkers_CleanUpManyMarkers(t *testing.T) {
 
 	for i := range epochsToAdvance {
 		te.ft.Advance(p.MinEpochDuration + 1*time.Hour)
-		te.mgr.forceAdvanceEpoch(ctx)
+		te.mustForceAdvanceEpoch(ctx, t)
 		te.mustWriteIndexFiles(ctx, t, newFakeIndexWithEntries(i+1))
 	}
 
@@ -2120,19 +2120,22 @@ func (p parameterProvider) GetParameters(ctx context.Context) (*Parameters, erro
 }
 
 // forceAdvanceEpoch advances current epoch unconditionally.
-func (e *Manager) forceAdvanceEpoch(ctx context.Context) error {
-	cs, err := e.committedState(ctx, 0)
+func (te *epochManagerTestEnv) forceAdvanceEpoch(ctx context.Context) error {
+	cs, err := te.mgr.committedState(ctx, 0)
 	if err != nil {
 		return err
 	}
 
-	e.Invalidate()
+	te.mgr.Invalidate()
 
-	if err := e.advanceEpochMarker(ctx, cs); err != nil {
-		return errors.Wrap(err, "error advancing epoch")
-	}
+	return te.mgr.advanceEpochMarker(ctx, cs)
+}
 
-	return nil
+func (te *epochManagerTestEnv) mustForceAdvanceEpoch(ctx context.Context, tb testing.TB) {
+	tb.Helper()
+
+	err := te.forceAdvanceEpoch(ctx)
+	require.NoError(tb, err)
 }
 
 func (te *epochManagerTestEnv) verifyCurrentWriteEpoch(t *testing.T, expectedEpoch int) {

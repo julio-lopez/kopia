@@ -28,15 +28,14 @@ func TestGetBlobVersionsFailsWhenVersioningDisabled(t *testing.T) {
 
 	ctx := testlogging.Context(t)
 	// use context that gets canceled after opening storage to ensure it's not used beyond New().
-	newctx, cancel := context.WithCancel(ctx)
-
+	newCtx, cancel := context.WithCancel(ctx)
 	opts := &azure.Options{
 		Container:      container,
 		StorageAccount: storageAccount,
 		StorageKey:     storageKey,
 		Prefix:         storagePrefixForTest(),
 	}
-	st, err := azure.New(newctx, opts, false)
+	st, err := azure.New(newCtx, opts, false)
 	require.NoError(t, err)
 
 	cancel()
@@ -66,7 +65,7 @@ func TestGetBlobVersions(t *testing.T) {
 
 	ctx := testlogging.Context(t)
 	// use context that gets canceled after opening storage to ensure it's not used beyond New().
-	newctx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := context.WithCancel(ctx)
 
 	opts := &azure.Options{
 		Container:      container,
@@ -74,7 +73,7 @@ func TestGetBlobVersions(t *testing.T) {
 		StorageKey:     storageKey,
 		Prefix:         storagePrefixForTest(),
 	}
-	st, err := azure.New(newctx, opts, false)
+	st, err := azure.New(newCtx, opts, false)
 	require.NoError(t, err)
 
 	cancel()
@@ -175,7 +174,7 @@ func TestGetBlobVersionsWithDeletion(t *testing.T) {
 
 	ctx := testlogging.Context(t)
 	// use context that gets canceled after opening storage to ensure it's not used beyond New().
-	newctx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := context.WithCancel(ctx)
 
 	opts := &azure.Options{
 		Container:      container,
@@ -183,7 +182,7 @@ func TestGetBlobVersionsWithDeletion(t *testing.T) {
 		StorageKey:     storageKey,
 		Prefix:         storagePrefixForTest(),
 	}
-	st, err := azure.New(newctx, opts, false)
+	st, err := azure.New(newCtx, opts, false)
 	require.NoError(t, err)
 
 	cancel()

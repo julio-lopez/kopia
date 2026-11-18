@@ -162,8 +162,8 @@ func oldestUncompactedEpoch(cs CurrentSnapshot) (int, error) {
 }
 
 // filterLowerThan returns a sequence with the elements from s that are greater
-// or equal than threshold, that is it omits the elements that are strictly less
-// than threshold.
+// than or equal to threshold, that is it omits the elements that are strictly
+// less than threshold.
 // For example, if s = {0, 3, 5} and threshold is 3, then the resulting sequence
 // yields {3, 5}.
 func filterLowerThan[V cmp.Ordered](threshold V, s iter.Seq[V]) iter.Seq[V] {
@@ -180,9 +180,10 @@ func filterLowerThan[V cmp.Ordered](threshold V, s iter.Seq[V]) iter.Seq[V] {
 
 // getOldestUncompactedAfterEpoch finds the oldest uncompacted epoch given a
 // sequence of known (single-epoch) compacted epochs. The returned epoch is
-// greater or equal than the uncompactedCandidateEpoch. For example, suppose
-// that compacted epochs has { 3, 5, 6, 8 } then the following are the returned
-// values for uncompactedCandidateEpoch
+// greater than or equal to the uncompactedCandidateEpoch. For example, suppose
+// that the compacted epochs are { 3, 5, 6, 8 } then this function returns the
+// values below for different values of the uncompactedCandidateEpoch parameter:
+//
 // uncompactedCandidateEpoch < 3 => uncompactedCandidateEpoch
 // uncompactedCandidateEpoch == 3 => 4
 // uncompactedCandidateEpoch == 4 => 4
