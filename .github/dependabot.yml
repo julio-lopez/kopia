@@ -7,6 +7,8 @@ updates:
     schedule:
       interval: weekly
       day: sunday
+    allow:
+      - dependency-type: "all"
     cooldown:
       default-days: 6
     ignore:
@@ -43,3 +45,13 @@ updates:
       docker:
         patterns:
         - "docker/*"
+  - package-ecosystem: docker
+    directory: "/tools/docker/"
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 4
+    groups:
+      all:
+        patterns:
+        - "*"

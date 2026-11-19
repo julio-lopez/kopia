@@ -12,8 +12,8 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/chmduquesne/rollinghash v4.0.0+incompatible
-	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
-	github.com/chromedp/chromedp v0.16.0
+	github.com/chromedp/cdproto v0.160.2
+	github.com/chromedp/chromedp v0.23.0
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
 	github.com/edsrzf/mmap-go v1.2.0
@@ -30,7 +30,7 @@ require (
 	github.com/klauspost/compress v1.20.4
 	github.com/klauspost/pgzip v1.3.0
 	github.com/klauspost/reedsolomon v1.14.2
-	github.com/kopia/htmluibuild v0.0.1-0.20261103050955-97972bdde3bb
+	github.com/kopia/htmluibuild v0.0.1-0.20261118001847-6a6aabd30284
 	github.com/kylelemons/godebug v1.1.0
 	github.com/mattn/go-colorable v0.1.16
 	github.com/minio/minio-go/v7 v7.4.1
@@ -90,7 +90,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -102,9 +101,6 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/gobwas/httphead v0.1.0 // indirect
-	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/glog v1.2.5 // indirect
