@@ -21,7 +21,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  build:
+  sync_fork:
     name: Sync Fork
     runs-on: ubuntu-latest
     permissions:
@@ -37,3 +37,28 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh repo sync ${{ github.repository }} -b ${{ inputs.target_branch || 'upstream' }}
+  fallback_sync:
+    name: Fallback Sync
+    if: ${{ failure() }}
+    needs: sync_fork
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+    -
+      uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+      with:
+        egress-policy: audit
+    -
+      name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.target_branch || 'upstream' }}
+        fetch-depth: 0
+    -
+      name: Update upstream branch
+      run: |
+        git checkout ${{ inputs.target_branch || 'upstream' }}
+        git fetch https://github.com/kopia/kopia.git master
+        git merge --ff-only FETCH_HEAD
+        git push origin
